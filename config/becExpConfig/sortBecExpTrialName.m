@@ -1,7 +1,9 @@
 function trialNameListSorted = sortBecExpTrialName(trialNameList)
 %SORTBECEXPTRIALNAME Summary of this function goes here
 %   Detailed explanation goes here
-nameOrder = ["Test";"Mot";"Bec"];
+nameOrder = ["Test";"Mot";"CMot";"Gm";"D1";"partialEvapA";...
+    "partialEvapB";"partialEvapC";"partialEvapD";"EvapD";...
+    "RfTransfer";"Odt";"HfBec";"NiBec";"HfLattice";"NiLattice"];
 nameOrder = "^" + nameOrder;
 
 trialNameList = sort(trialNameList);
