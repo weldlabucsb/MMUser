@@ -186,7 +186,7 @@ BecExpConfig.CiceroLogOrigin = CiceroLogOrigin;
 BecExpConfig.DataGroupSize = 3;
 BecExpConfig.IsAutoAcquire = true;
 BecExpConfig.OdColormap = {jet}; %Change to your favorite colormap
-BecExpConfig.AtomName = "Lithium7";
+BecExpConfig.AtomName = "Strontium84";
 BecExpConfig.ControlAppName = "BecControl";
 BecExpConfig.ImagingStageList = ["LF","HF","NI"]; %List your possible imaging stages here. For example, if you do imaging at low/high magnetic fields, type ["LF","HF"].
 
