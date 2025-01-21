@@ -1,4 +1,4 @@
 *.pyc
 *.asv
 Thumbs.db
-Config.mat
+/config/Config.mat
