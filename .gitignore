@@ -1,0 +1,4 @@
+*.pyc
+*.asv
+Thumbs.db
+/config/Config.mat
