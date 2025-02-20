@@ -74,6 +74,7 @@ SerialNumber = int32([ ...
     21750852]);
 ExposureTime = [30;70;70;70;70] * 1e-6; % in SI unit
 Magnification = [3.337676782237963;100/250;500/300;1;100/250]; % Dependent on your setup
+Transmission = [1;1;1;1;1]; % Dependent on your setup
 load("quantumEfficiency.mat","pcoQE")
 QuantumEfficiencyData = {
     pcoQE;
@@ -91,7 +92,7 @@ BadRow = {
 };
 AcquisitionConfig = table(Name,DeviceModel,DeviceID,...
     SerialNumber,ExposureTime,...
-    BadRow,Magnification,QuantumEfficiencyData);
+    BadRow,Magnification,Transmission,QuantumEfficiencyData);
 save(configName,"AcquisitionConfig",'-mat','-append')
 
 %% Set the waveform generator configuration
