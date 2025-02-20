@@ -16,19 +16,21 @@ configName = fullfile(ConfigPath,'Config.mat');
 mainPath = fullfile(getHome,"Documents","MMData");
 
 %% Set the computer configuration
-BecExpControlComputerName = "WOODHOUSE"; %The name of the computer running BecExp analysis
-BecExpParentPath = "B:\_Li\_LithiumData"; %The path where BecExp analysis data are saved
-BecExpDatabaseName = "lithium_experiment"; %The postgresql database name for saving the experimental metadata. Just give it a name.
+% PLEASE EDIT HERE
+BecExpControlComputerName = "YourComputer"; %The name of the computer running BecExp analysis
+BecExpParentPath = "YourPath"; %The path where BecExp analysis data are saved
+BecExpDatabaseName = "alkali_experiment"; %The postgresql database name for saving the experimental metadata. Just give it a name.
 BecExpDatabaseTableName = "main"; %The table. Usually I use 'main'.
-CiceroComputerName = "GOB"; %The name of the computer running Cicero
-CiceroLogOrigin = "\\169.254.203.255\RunLogs"; %The path where Cicero logs are temporarily saved
-HardwareLogOrigin = "B:\_Li\_LithiumData\HardwareLogs"; %The path where all other Hardware logs are temporarily saved
+CiceroComputerName = "YourComputer2"; %The name of the computer running Cicero
+CiceroLogOrigin = "YourPath2"; %The path where Cicero logs are temporarily saved
+HardwareLogOrigin = "YourPath3"; %The path where all other Hardware logs are temporarily saved
 ComputerConfig = table(BecExpControlComputerName,BecExpParentPath,...
     BecExpDatabaseName,BecExpDatabaseTableName,CiceroComputerName,...
     CiceroLogOrigin,HardwareLogOrigin,RepoPath,ConfigPath,TempPath);
 save(configName,"ComputerConfig",'-mat')
 
 %% Set the database configuration
+% PLEASE EDIT THE PGSQL SERVER INFORMATION
 Name = [
     BecExpDatabaseName;...
     "simulation";...
@@ -44,7 +46,7 @@ BecExpDatabaseTableName;
     };
 DatabaseConfig = table(Name,Table); %This saves exp/sim database names and the names of the tables
 
-Name = ["localhost";"128.111.8.45"];
+Name = ["localhost";"YourRemoteServer"];
 Port = [5432;5432];
 Username = ["postgres";"postgres";]; %The master username/password you use when you install PostgreSQL
 Password = ["SupermassiveBlackHole";"SupermassiveBlackHole"];
@@ -52,98 +54,63 @@ DatabaseServerConfig = table(Name,Port,Username,Password);
 save(configName,"DatabaseConfig","DatabaseServerConfig",'-mat','-append')
 
 %% Set the acquisition configuration
-% Please edit everything here if it's the first setup
+% PLEASE EDIT HERE IF YOU NEED AUTO CAMERA CONTROL
 Name = [
-    "TOP";
-    "XODT";
-    "SBB";
-    "GREEN";
-    "ODT"]; %Name your cameras.
-CameraType = [
-    "PCO";
-    "Basler";
-    "Basler";
-    "Basler";
-    "Basler"]; %Camera types. Now only PCO and Basler are supported.
-AdaptorName = [
-    "pcocameraadaptor_r2023a";
-    "gentl";
-    "gentl";
-    "gentl";
-    "gentl"];%MATLAB adaptors for camera connection
-DeviceID = int32([0;1;1;1;1]); %To distinguish devices if multiple devices are connected through the same adaptor
+    "Camera1";
+    "Camera2";
+    ]; %Name your cameras.
+DeviceModel = [
+    "PcoEdge5p5";
+    "BaslerAcA1920_25um";
+    ]; %Camera types. Now only PCO and Basler are supported.
+DeviceID = int32([0;1]); %To distinguish devices if multiple devices are connected through the same adaptor
 SerialNumber = int32([ ...
-    924; ...
-    21663581; ...
-    21975809; ...
-    24528051; ...
-    21750852]);
-ExposureTime = [30;70;70;70;70] * 1e-6; % in SI unit
-IsExternalTriggered = [true;true;true;false;true];
-PixelSize = [6.5;2.2;2.2;2.2;2.2] * 1e-6; % in SI unit
-ImageSize = int32([ ...
-    2160,2560; ...
-    1080,1920; ...
-    1080,1920; ...
-    1080,1920; ...
-    1080,1920]); % in Pixels
-Magnification = [3.337676782237963;100/250;500/300;1;100/250]; % Dependent on your setup
-ImageGroupSize = [3;3;3;1;3]; %How many frames are grouped as a data set. In BEC experiments we take three images for absorption imaging.
-ConfigFun = {
-    @setPcoConfig;
-    @setBaslerConfig;
-    @setBaslerConfig;
-    @setBaslerConfig;
-    @setBaslerConfig}; %Dependent on your camera type. You can define your own config function.
+    1; ...
+    2;]);
+ExposureTime = [30;70] * 1e-6; % in SI unit
+Magnification = [3.33;100/250;]; % Dependent on your setup
+Transmission = [1;1]; % Dependent on your setup
 load("quantumEfficiency.mat","pcoQE")
 QuantumEfficiencyData = {
     pcoQE;
     [];
-    [];
-    [];
-    [];
 };
 BadRow = {
-    1081;
     [];
     [];
-    [];
-    []
 };
-BitsPerSample = [16;8;8;8;8]; % How many bits per pixel
-AcquisitionConfig = table(Name,CameraType,AdaptorName,DeviceID,...
-    SerialNumber,ExposureTime,IsExternalTriggered,PixelSize,...
-    ImageSize,BadRow,Magnification,ImageGroupSize,ConfigFun,QuantumEfficiencyData,BitsPerSample);
+AcquisitionConfig = table(Name,DeviceModel,DeviceID,...
+    SerialNumber,ExposureTime,...
+    BadRow,Magnification,Transmission,QuantumEfficiencyData);
 save(configName,"AcquisitionConfig",'-mat','-append')
 
 %% Set the waveform generator configuration
+% PLEASE EDIT HERE IF YOU NEED AUTO AWG CONTROL
 Name = [
-    "LatticeMod";...
-    "XvWingMod";...
-    "GreenWallMod"
+    "Modulation1";...
+    "Modulation2";...
     ]; %Name your AWGs.
 DeviceModel = [
 "Keysight33600A";...
 "Keysight33500B";...
-"SpectrumAWG"
 ];
 ResourceName = [
-"USB0::0x0957::0x5607::MY59000681::0::INSTR";...
-"USB0::0x0957::0x2807::MY59003843::0::INSTR";...
-"TCPIP::172.16.0.0::inst0"
+"YourResourceName1";...
+"YourResourceName2";...
 ]; %The VISA address or the TCP address
 WaveformGeneratorConfig = table(Name,DeviceModel,ResourceName);
 save(configName,"WaveformGeneratorConfig",'-mat','-append')
 
 %% Set the scope configuration
+% PLEASE EDIT HERE IF YOU NEED AUTO SCOPE CONTROL
 Name = [
-    "LatticeScope"
+    "Scope1"
     ]; %Name your scope.
 DeviceModel = [
 "Tektronix1104"
 ];
 ResourceName = [
-"USB0::0x0699::0x03B4::C011351::0::INSTR"
+"YourResourceName3"
 ]; %The VISA address or the TCP address
 ScopeConfig = table(Name,DeviceModel,ResourceName);
 save(configName,"ScopeConfig",'-mat','-append')
@@ -164,6 +131,7 @@ RoiConfig.SubRoiCenterSize = arrayfun(@str2num,string(RoiConfig.SubRoiCenterSize
 save(configName,"RoiConfig",'-mat','-append')
 
 %% Set the BEC experiment configuration
+% PLEASE EDIT HERE IF YOU NEED AUTO BECEXP ANALYSIS
 
 %copy the .dll for Cicero log reading
 dsLibPath = fullfile(matlabroot,'\bin\win64\DataStructures.dll');
@@ -186,9 +154,9 @@ BecExpConfig.CiceroLogOrigin = CiceroLogOrigin;
 BecExpConfig.DataGroupSize = 3;
 BecExpConfig.IsAutoAcquire = true;
 BecExpConfig.OdColormap = {jet}; %Change to your favorite colormap
-BecExpConfig.AtomName = "Strontium84";
+BecExpConfig.AtomName = "Lithium7"; 
 BecExpConfig.ControlAppName = "BecControl";
-BecExpConfig.ImagingStageList = ["LF","HF","NI"]; %List your possible imaging stages here. For example, if you do imaging at low/high magnetic fields, type ["LF","HF"].
+BecExpConfig.ImagingStageList = ["LF","HF"]; %List your possible imaging stages here. For example, if you do imaging at low/high magnetic fields, type ["LF";"HF"].
 
 becExpType = readtable("becExpType.csv.xlsx",'TextType','string');
 BecExpConfig = [becExpType,repmat(struct2table(BecExpConfig),size(becExpType,1),1)];
@@ -230,7 +198,7 @@ MeSimOutput = readtable("meSimOutput.csv.xlsx",'TextType','string');
 save(configName,"MeSimConfig","MeSimOutput",'-mat','-append')
 
 %% Set the lattice schrodinger equation simulation configuration
-LatticeSeSim1DConfig.ParentPath = fullfile("B:\__Lab Member Folders\Xiao\SimulationData","latticeSeSim1D");
+LatticeSeSim1DConfig.ParentPath = fullfile(mainPath,"latticeSeSim1D");
 LatticeSeSim1DConfig.DatabaseName = "simulation";
 LatticeSeSim1DConfig.DataPrefix = "run";
 LatticeSeSim1DConfig.DataFormat = ".mat";
@@ -245,8 +213,8 @@ LatticeSeSim1DOutput = readtable("latticeSeSim1DOutput.csv.xlsx",'TextType','str
 save(configName,"LatticeSeSim1DConfig","LatticeSeSim1DOutput",'-mat','-append')
 
 %% Set the lattice Fourier schrodinger equation simulation configuration
-LatticeFourierSeSim1DConfig.ParentPath = fullfile("B:\__Lab Member Folders\Xiao\SimulationData","latticeFourierSeSim1D");
-LatticeFourierSeSim1DConfig.DatabaseName = "simulation";
+LatticeFourierSeSim1DConfig.ParentPath = fullfile(mainPath,"latticeFourierSeSim1D");
+LatticeFourierSeSim1DConfig.DatabaseName = "simulation_local";
 LatticeFourierSeSim1DConfig.DataPrefix = "run";
 LatticeFourierSeSim1DConfig.DataFormat = ".mat";
 LatticeFourierSeSim1DConfig.IsAutoDelete = false;
