@@ -59,18 +59,12 @@ Name = [
     "SBB";
     "GREEN";
     "ODT"]; %Name your cameras.
-CameraType = [
-    "PCO";
-    "Basler";
-    "Basler";
-    "Basler";
-    "Basler"]; %Camera types. Now only PCO and Basler are supported.
-AdaptorName = [
-    "pcocameraadaptor_r2023a";
-    "gentl";
-    "gentl";
-    "gentl";
-    "gentl"];%MATLAB adaptors for camera connection
+DeviceModel = [
+    "PcoEdge5p5";
+    "BaslerAcA1920_25um";
+    "BaslerAcA1920_25um";
+    "BaslerAcA1920_25um";
+    "BaslerAcA1920_25um"]; %Camera model. Now supporting PCO, Basler and Andor.
 DeviceID = int32([0;1;1;1;1]); %To distinguish devices if multiple devices are connected through the same adaptor
 SerialNumber = int32([ ...
     924; ...
@@ -79,22 +73,7 @@ SerialNumber = int32([ ...
     24528051; ...
     21750852]);
 ExposureTime = [30;70;70;70;70] * 1e-6; % in SI unit
-IsExternalTriggered = [true;true;true;false;true];
-PixelSize = [6.5;2.2;2.2;2.2;2.2] * 1e-6; % in SI unit
-ImageSize = int32([ ...
-    2160,2560; ...
-    1080,1920; ...
-    1080,1920; ...
-    1080,1920; ...
-    1080,1920]); % in Pixels
 Magnification = [3.337676782237963;100/250;500/300;1;100/250]; % Dependent on your setup
-ImageGroupSize = [3;3;3;1;3]; %How many frames are grouped as a data set. In BEC experiments we take three images for absorption imaging.
-ConfigFun = {
-    @setPcoConfig;
-    @setBaslerConfig;
-    @setBaslerConfig;
-    @setBaslerConfig;
-    @setBaslerConfig}; %Dependent on your camera type. You can define your own config function.
 load("quantumEfficiency.mat","pcoQE")
 QuantumEfficiencyData = {
     pcoQE;
@@ -110,10 +89,9 @@ BadRow = {
     [];
     []
 };
-BitsPerSample = [16;8;8;8;8]; % How many bits per pixel
-AcquisitionConfig = table(Name,CameraType,AdaptorName,DeviceID,...
-    SerialNumber,ExposureTime,IsExternalTriggered,PixelSize,...
-    ImageSize,BadRow,Magnification,ImageGroupSize,ConfigFun,QuantumEfficiencyData,BitsPerSample);
+AcquisitionConfig = table(Name,DeviceModel,DeviceID,...
+    SerialNumber,ExposureTime,...
+    BadRow,Magnification,QuantumEfficiencyData);
 save(configName,"AcquisitionConfig",'-mat','-append')
 
 %% Set the waveform generator configuration
