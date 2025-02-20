@@ -59,29 +59,17 @@ Name = [
     "Camera1";
     "Camera2";
     ]; %Name your cameras.
-CameraType = [
-    "PCO";
-    "Basler";
+DeviceModel = [
+    "PcoEdge5p5";
+    "BaslerAcA1920_25um";
     ]; %Camera types. Now only PCO and Basler are supported.
-AdaptorName = [
-    "pcocameraadaptor_r2023a";
-    "gentl";
-    ]; %MATLAB adaptors for camera connection
 DeviceID = int32([0;1]); %To distinguish devices if multiple devices are connected through the same adaptor
 SerialNumber = int32([ ...
     1; ...
     2;]);
 ExposureTime = [30;70] * 1e-6; % in SI unit
-IsExternalTriggered = [true;true;];
-PixelSize = [6.5;2.2] * 1e-6; % in SI unit
-ImageSize = int32([ ...
-    2160,2560; ...
-    1080,1920;]); % in Pixels
 Magnification = [3.33;100/250;]; % Dependent on your setup
-ImageGroupSize = [3;3;]; %How many frames are grouped as a data set. In BEC experiments we take three images for absorption imaging.
-ConfigFun = {
-    @setPcoConfig;
-    @setBaslerConfig;}; %Dependent on your camera type. You can define your own config function.
+Transmission = [1;1]; % Dependent on your setup
 load("quantumEfficiency.mat","pcoQE")
 QuantumEfficiencyData = {
     pcoQE;
@@ -91,10 +79,9 @@ BadRow = {
     [];
     [];
 };
-BitsPerSample = [16;8;]; % How many bits per pixel
-AcquisitionConfig = table(Name,CameraType,AdaptorName,DeviceID,...
-    SerialNumber,ExposureTime,IsExternalTriggered,PixelSize,...
-    ImageSize,BadRow,Magnification,ImageGroupSize,ConfigFun,QuantumEfficiencyData,BitsPerSample);
+AcquisitionConfig = table(Name,DeviceModel,DeviceID,...
+    SerialNumber,ExposureTime,...
+    BadRow,Magnification,Transmission,QuantumEfficiencyData);
 save(configName,"AcquisitionConfig",'-mat','-append')
 
 %% Set the waveform generator configuration
