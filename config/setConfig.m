@@ -163,13 +163,7 @@ BecExpConfig = [becExpType,repmat(struct2table(BecExpConfig),size(becExpType,1),
 BecExpParameterUnit = readtable("parameterUnit.csv.xlsx",'TextType','string');
 BecExpConfig = join(BecExpConfig,BecExpParameterUnit,'Keys',{'ScannedParameter','ScannedParameter'});
 
-load("FringeRemovalMaskConfig.mat","FringeRemovalMaskConfig")
-% Assign empty masks 
-TrialName = BecExpConfig.TrialName(find(~ismember(BecExpConfig.TrialName,FringeRemovalMaskConfig.TrialName)));
-FringeRemovalMask = cell(numel(TrialName),1);
-FringeRemovalMaskConfig = [FringeRemovalMaskConfig;table(TrialName,FringeRemovalMask)];
-BecExpConfig = join(BecExpConfig,FringeRemovalMaskConfig);
-
+BecExpConfig.FringeRemovalMask = arrayfun(@eval,(fillmissing(BecExpConfig.FringeRemovalMask,'constant',"[]")),'UniformOutput',false);
 save(configName,"BecExpConfig","BecExpParameterUnit",'-mat','-append')
 
 %% Set the BEC experiment local test configuration
