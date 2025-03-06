@@ -21,7 +21,7 @@ BecExpParentPath = "B:\_Li\_LithiumData"; %The path where BecExp analysis data a
 BecExpDatabaseName = "lithium_experiment"; %The postgresql database name for saving the experimental metadata. Just give it a name.
 BecExpDatabaseTableName = "main"; %The table. Usually I use 'main'.
 CiceroComputerName = "GOB"; %The name of the computer running Cicero
-CiceroLogOrigin = "\\169.254.203.255\RunLogs"; %The path where Cicero logs are temporarily saved
+CiceroLogOrigin = "\\172.16.0.2\RunLogs"; %The path where Cicero logs are temporarily saved
 HardwareLogOrigin = "B:\_Li\_LithiumData\HardwareLogs"; %The path where all other Hardware logs are temporarily saved
 ComputerConfig = table(BecExpControlComputerName,BecExpParentPath,...
     BecExpDatabaseName,BecExpDatabaseTableName,CiceroComputerName,...
