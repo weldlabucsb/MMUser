@@ -22,6 +22,9 @@ BecExpDatabaseName = "lithium_experiment"; %The postgresql database name for sav
 BecExpDatabaseTableName = "main"; %The table. Usually I use 'main'.
 CiceroComputerName = "GOB"; %The name of the computer running Cicero
 CiceroLogOrigin = "\\172.16.0.2\RunLogs"; %The path where Cicero logs are temporarily saved
+if string(getenv('computername')) == BecExpControlComputerName
+    addpath(CiceroLogOrigin); %This somehow helps with the communication speed if the folder is a networkfolder
+end
 HardwareLogOrigin = "B:\_Li\_LithiumData\HardwareLogs"; %The path where all other Hardware logs are temporarily saved
 ComputerConfig = table(BecExpControlComputerName,BecExpParentPath,...
     BecExpDatabaseName,BecExpDatabaseTableName,CiceroComputerName,...
