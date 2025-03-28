@@ -115,10 +115,23 @@ ResourceName = [
 ScopeConfig = table(Name,DeviceModel,ResourceName);
 save(configName,"ScopeConfig",'-mat','-append')
 
+%% Set the phase lock configuration
+Name = [
+    "PhaseLock1"
+];
+DeviceModel = [
+    "VescentSlice"
+];
+ResourceName = [
+    "YourResourceName4"
+];
+PhaseLockConfig = table(Name,DeviceModel,ResourceName);
+save(configName,"PhaseLockConfig",'-mat','-append')
+
 %% Set the hardware list
-Name = [WaveformGeneratorConfig.Name;ScopeConfig.Name];
+Name = [WaveformGeneratorConfig.Name;ScopeConfig.Name;PhaseLockConfig.Name];
 Type = [repmat("WaveformGenerator",numel(WaveformGeneratorConfig.Name),1);...
-    repmat("Scope",numel(ScopeConfig.Name),1)];
+    repmat("Scope",numel(ScopeConfig.Name),1);repmat("PhaseLock",numel(PhaseLockConfig.Name),1)];
 DataPath = fullfile(ComputerConfig.HardwareLogOrigin,Name);
 HardwareList = table(Name,Type,DataPath);
 save(configName,"HardwareList",'-mat','-append')
