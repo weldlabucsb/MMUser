@@ -17,13 +17,13 @@ mainPath = fullfile(getHome,"Documents","MMData");
 
 %% Set the computer configuration
 % PLEASE EDIT HERE
-BecExpControlComputerName = "YourComputer"; %The name of the computer running BecExp analysis
-BecExpParentPath = "YourPath"; %The path where BecExp analysis data are saved
-BecExpDatabaseName = "alkali_experiment"; %The postgresql database name for saving the experimental metadata. Just give it a name.
+BecExpControlComputerName = "T1000"; %The name of the computer running BecExp analysis
+BecExpParentPath = "B:\_Sr\StrontiumData"; %The path where BecExp analysis data are saved
+BecExpDatabaseName = "sr_experiment"; %The postgresql database name for saving the experimental metadata. Just give it a name.
 BecExpDatabaseTableName = "main"; %The table. Usually I use 'main'.
-CiceroComputerName = "YourComputer2"; %The name of the computer running Cicero
-CiceroLogOrigin = "YourPath2"; %The path where Cicero logs are temporarily saved
-HardwareLogOrigin = "YourPath3"; %The path where all other Hardware logs are temporarily saved
+CiceroComputerName = "ARRYN"; %The name of the computer running Cicero
+CiceroLogOrigin = "\\ARRYN\RunLogs"; %The path where Cicero logs are temporarily saved
+HardwareLogOrigin = "B:\_Sr\HardwareLogs"; %The path where all other Hardware logs are temporarily saved
 ComputerConfig = table(BecExpControlComputerName,BecExpParentPath,...
     BecExpDatabaseName,BecExpDatabaseTableName,CiceroComputerName,...
     CiceroLogOrigin,HardwareLogOrigin,RepoPath,ConfigPath,TempPath);
@@ -46,7 +46,7 @@ BecExpDatabaseTableName;
     };
 DatabaseConfig = table(Name,Table); %This saves exp/sim database names and the names of the tables
 
-Name = ["localhost";"YourRemoteServer"];
+Name = ["localhost";"128.111.8.45"];
 Port = [5432;5432];
 Username = ["postgres";"postgres";]; %The master username/password you use when you install PostgreSQL
 Password = ["SupermassiveBlackHole";"SupermassiveBlackHole"];
@@ -56,27 +56,22 @@ save(configName,"DatabaseConfig","DatabaseServerConfig",'-mat','-append')
 %% Set the acquisition configuration
 % PLEASE EDIT HERE IF YOU NEED AUTO CAMERA CONTROL
 Name = [
-    "Camera1";
-    "Camera2";
+    "TOP";
     ]; %Name your cameras.
 DeviceModel = [
-    "PcoEdge5p5";
-    "BaslerAcA1920_25um";
+    "AndorIXon897";
     ]; %Camera types. Now only PCO and Basler are supported.
-DeviceID = int32([0;1]); %To distinguish devices if multiple devices are connected through the same adaptor
+DeviceID = int32([0]); %To distinguish devices if multiple devices are connected through the same adaptor
 SerialNumber = int32([ ...
-    1; ...
-    2;]);
-ExposureTime = [30;70] * 1e-6; % in SI unit
-Magnification = [3.33;100/250;]; % Dependent on your setup
-Transmission = [1;1]; % Dependent on your setup
-load("quantumEfficiency.mat","pcoQE")
+    1;]);
+ExposureTime = [28] * 1e-6; % in SI unit
+Magnification = [8]; % Dependent on your setup
+Transmission = [1]; % Dependent on your setup
+% load("quantumEfficiency.mat","pcoQE")
 QuantumEfficiencyData = {
-    pcoQE;
-    [];
+    [460e-9,0.8;[462e-9,0.8]];
 };
 BadRow = {
-    [];
     [];
 };
 AcquisitionConfig = table(Name,DeviceModel,DeviceID,...
@@ -87,16 +82,13 @@ save(configName,"AcquisitionConfig",'-mat','-append')
 %% Set the waveform generator configuration
 % PLEASE EDIT HERE IF YOU NEED AUTO AWG CONTROL
 Name = [
-    "Modulation1";...
-    "Modulation2";...
+    "ShakenTrap";...
     ]; %Name your AWGs.
 DeviceModel = [
 "Keysight33600A";...
-"Keysight33500B";...
 ];
 ResourceName = [
-"YourResourceName1";...
-"YourResourceName2";...
+"USB0::0x0957::0x5707::MY59002994::0::INSTR";...
 ]; %The VISA address or the TCP address
 WaveformGeneratorConfig = table(Name,DeviceModel,ResourceName);
 save(configName,"WaveformGeneratorConfig",'-mat','-append')
@@ -117,13 +109,13 @@ save(configName,"ScopeConfig",'-mat','-append')
 
 %% Set the phase lock configuration
 Name = [
-    "PhaseLock1"
+    % "PhaseLock1"
 ];
 DeviceModel = [
-    "VescentSlice"
+    % "VescentSlice"
 ];
 ResourceName = [
-    "YourResourceName4"
+    % "YourResourceName4"
 ];
 PhaseLockConfig = table(Name,DeviceModel,ResourceName);
 save(configName,"PhaseLockConfig",'-mat','-append')
@@ -166,8 +158,8 @@ BecExpConfig.DatabaseTableName = BecExpDatabaseTableName;
 BecExpConfig.CiceroLogOrigin = CiceroLogOrigin;
 BecExpConfig.DataGroupSize = 3;
 BecExpConfig.IsAutoAcquire = true;
-BecExpConfig.OdColormap = {jet}; %Change to your favorite colormap
-BecExpConfig.AtomName = "Lithium7"; 
+BecExpConfig.OdColormap = {inferno}; %Change to your favorite colormap
+BecExpConfig.AtomName = "Strontium84"; 
 BecExpConfig.ControlAppName = "BecControl";
 BecExpConfig.ImagingStageList = ["LF","HF"]; %List your possible imaging stages here. For example, if you do imaging at low/high magnetic fields, type ["LF";"HF"].
 
