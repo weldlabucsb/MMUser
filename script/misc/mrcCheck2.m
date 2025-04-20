@@ -1,12 +1,11 @@
 %% path
 parentPath = "C:/Users/WOODHOUSE/Documents/BeamStabil/Data";
 filePath = findLatestFile(parentPath);
-% filePath = "C:\Users\WOODHOUSE\Documents\BeamStabil\Data\BeamStab_2025-04-11T14-46-48.csv";
-tempPath = findFolderInPath("temp");
-tempPath = tempPath(1);
+filePath = "C:\Users\WOODHOUSE\Documents\BeamStabil\Data\BeamStab_2025-04-16T16-15-32.csv";
+tempPath = "C:\Users\WOODHOUSE\Documents\MMUser\temp";
 
 %% Trigger settings
-triggerPower = 3;
+triggerPower = 5.4;
 triggerDelay = 200e-3;
 triggerDuration = 200e-3;
 
@@ -24,6 +23,7 @@ rx1 = t.RX1_V_;
 ry1 = t.RY1_V_;
 rx2 = t.RX2_V_;
 ry2 = t.RY2_V_;
+p1 = t.I1_V_;
 
 %% Trigger Simulation
 power1Before = 0;
@@ -56,6 +56,7 @@ rx1C = cell(nTrigger,1);
 rx2C = cell(nTrigger,1);
 ry1C = cell(nTrigger,1);
 ry2C = cell(nTrigger,1);
+p1C = cell(nTrigger,1);
 for jj = 1:numel(idx)
     timeC{jj} = time(idx{jj});
     power1C{jj} = power1(idx{jj});
@@ -68,6 +69,7 @@ for jj = 1:numel(idx)
     rx2C{jj} = rx2(idx{jj});
     ry1C{jj} = ry1(idx{jj});
     ry2C{jj} = ry2(idx{jj});
+    p1C{jj} = p1(idx{jj});
 end
 
 timePlot = cellfun(@mean,timeC);
@@ -99,6 +101,15 @@ xlabel("Time [s]")
 ylabel("Piezo Voltage [V]")
 render
 saveas(gcf,fullfile(tempPath,"Piezo_Voltage.png"))
+
+%% Plot power
+figure(1002)
+hold on 
+plotRelativeNormalize(timePlot,p1C)
+xlabel("Time [s]")
+ylabel("Normalized Power Drift")
+render
+saveas(gcf,fullfile(tempPath,"Power.png"))
 
 %% Plot power
 % figure(1002)
