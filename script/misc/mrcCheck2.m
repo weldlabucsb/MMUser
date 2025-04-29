@@ -1,11 +1,11 @@
 %% path
 parentPath = "C:/Users/WOODHOUSE/Documents/BeamStabil/Data";
 filePath = findLatestFile(parentPath);
-filePath = "C:\Users\WOODHOUSE\Documents\BeamStabil\Data\BeamStab_2025-04-16T16-15-32.csv";
+% filePath = "C:\Users\WOODHOUSE\Documents\BeamStabil\Data\BeamStab_2025-04-16T16-15-32.csv";
 tempPath = "C:\Users\WOODHOUSE\Documents\MMUser\temp";
 
 %% Trigger settings
-triggerPower = 5.4;
+triggerPower = 5.;
 triggerDelay = 200e-3;
 triggerDuration = 200e-3;
 
