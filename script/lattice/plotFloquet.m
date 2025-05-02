@@ -11,21 +11,23 @@ ol = OpticalLattice(atom,laser);
 kL = ol.Laser.AngularWavenumber;
 Er = ol.RecoilEnergy;
 % ol.DepthSpec = 8.8458 * Er;
-ol.DepthSpec = 8.25 * Er;
+% ol.DepthSpec = 8.25 * Er;
+ol.DepthSpec = 8.5174 * Er;
 ol.updateIntensity;
-% nq = 2e4;
-nq = 1e3;
+nq = 2e4;
+% nq = 1e3;
 ol.computeAll1D(nq,2)
 Fjn = ol.BlochStateFourier;
 lambda = laser.Wavelength;
 
 %%
-driveFreq = 143e3;
-wf = SineWave(amplitude = 0.05 * 2,frequency = driveFreq,startTime=0,duration = 0.2,samplingRate=1e7);
+driveFreq = 143.2231e3;
+wf = SineWave(amplitude = 0.035 * 2,frequency = driveFreq,startTime=0,duration = 0.2,samplingRate=1e7);
 % wf = SineWave(amplitude = 0.02071 * 2,frequency = driveFreq,startTime=0,duration = 0.2,samplingRate=1e7);
 qList = linspace(-kL,kL,nq);
 % [EF,VF] = ol.computeFloquetAmpMod1D(qList,1:2,wf);
 [EF,VF] = ol.computeFloquetAmpMod1D(qList,0:2,wf);
+% save('FData.mat','EF','VF')
 
 %% 
 figure(123542)
