@@ -81,17 +81,19 @@ save(configName,"AcquisitionConfig",'-mat','-append')
 
 %% Set the waveform generator configuration
 % PLEASE EDIT HERE IF YOU NEED AUTO AWG CONTROL
+%AWG for shaken trap carrier
 Name = [
-    "ShakenTrap";...
+    "ShakenTrap";"FMShakenTrap"...
     ]; %Name your AWGs.
 DeviceModel = [
-"Keysight33600A";...
+"Keysight33600A";"Keysight33500B"...
 ];
 ResourceName = [
-"USB0::0x0957::0x5707::MY59002994::0::INSTR";...
+"USB0::0x0957::0x5707::MY59002994::0::INSTR";"USB0::0x0957::0x2807::MY62003575::0::INSTR"...
 ]; %The VISA address or the TCP address
 WaveformGeneratorConfig = table(Name,DeviceModel,ResourceName);
 save(configName,"WaveformGeneratorConfig",'-mat','-append')
+
 
 %% Set the scope configuration
 % PLEASE EDIT HERE IF YOU NEED AUTO SCOPE CONTROL
