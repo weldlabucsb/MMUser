@@ -1,4 +1,4 @@
-function [phi,pop] = aiPhaseFloquet(ol,F,alpha,freq)
+function [phi,phiD,phiS,pop] = aiPhaseFloquet(ol,F,alpha,freq)
 %AIPHASEANALYTICAL Summary of this function goes here
 %   Detailed explanation goes here
 %% Parameters
