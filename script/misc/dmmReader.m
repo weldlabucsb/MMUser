@@ -20,7 +20,7 @@ function onChanged(~,evt,l,l2)
 % end
 % disp("yes")
 pause(2)
-delay = 0.2;
+delay = 1.5;
 % duration = 1;
 dataPath = string(evt.FullPath.ToString());
 data = readtable(dataPath);
