@@ -1,0 +1,7 @@
+clear
+close all
+
+latticeFourierScanForceP5BO;
+latticeModulationScanForceP5Bo;
+latticeModulationScanForceP5BoCurvature;
+latticeModulationScanForceP5BoCurvatureGaussian;
