@@ -16,20 +16,20 @@ nDepth = 2000;
 depthList = linspace(Vmin,Vmax,nDepth);
 
 %% Compute full band integrated energy
-nq = 1000;
-qmin = - kL;
-qmax = kL;
-qList = linspace(qmin,qmax,nq);
-U0List = zeros(1,nDepth);
-for ii = 1:nDepth
-    ol.DepthSpec = depthList(ii);
-    eList = ol.computeTransitionFrequency1D(qList,1,2);
-    U0List(ii) = trapz(qList,eList);
-end
+% nq = 1000;
+% qmin = - kL;
+% qmax = kL;
+% qList = linspace(qmin,qmax,nq);
+% U0List = zeros(1,nDepth);
+% for ii = 1:nDepth
+%     ol.DepthSpec = depthList(ii);
+%     eList = ol.computeTransitionFrequency1D(qList,1,2);
+%     U0List(ii) = trapz(qList,eList);
+% end
 
 %% Compute partial band integrated energy
 nq = 1000;
-qr = 0.39;
+qr = 0.5;
 qmin = qr * kL;
 qmax = (2-qr) * kL;
 qList = linspace(qmin,qmax,nq);
@@ -42,8 +42,8 @@ for ii = 1:nDepth
 end
 
 %% Compute magic depth
-nFullBand = 1;
-Utotal = UList + U0List * nFullBand;
+nFullBand = 0;
+Utotal = UList;
 dUdV = gradient(Utotal);
 [~,idx] = min(abs(dUdV));
 magicDepth = depthList(idx);
