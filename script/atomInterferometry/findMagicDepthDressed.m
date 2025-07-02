@@ -10,20 +10,22 @@ laser = GaussianBeam( ...
 ol = OpticalLattice(atom,laser);
 kL = laser.AngularWavenumber;
 Er = ol.RecoilEnergy;
-dq = 1e-4;
+dq = 1e-3;
 g = 9.81;
 M = atom.mass;
-F = M * g;
+divisor = 5;
+F = M * g / divisor;
 hbar = Constants.SI("hbar");
 h = hbar * 2 * pi;
-tPulse = 2.5e-3;
-tRamp = 0.1e-3;
+tPulse = 2.5e-3 * divisor;
+tRamp = 0.1e-3 * divisor;
 
 %% Loop size list
 nl = 2000;
 loopSizeTheory = linspace(0.01,10,nl);
 magicDepthTheory = zeros(1,nl);
-load magicStatic.mat
+fileName =  "magicDressedDivisor"+ num2str(divisor) + ".mat";
+load( "magicStaticDivisor"+ num2str(divisor) + ".mat")
 
 %% Compute magic depth
 parfor ii = 1:nl
@@ -37,7 +39,7 @@ for ii = 1:nl
     [~,loopSizeTheory(ii)] = aiPhaseDressed(...
         magicDepthTheory(ii),1-loopSizeTheory(ii),frequency(ii),modDepth(ii),tPulse,tRamp,F,dq);
 end
-save(fullfile(findFolderInPath("atomInterferometry"),"magicDressed.mat"),"loopSizeTheory","magicDepthTheory")
+save(fullfile(findFolderInPath("atomInterferometry"),fileName),"loopSizeTheory","magicDepthTheory")
 
 %% Compute modulation parameters
 modDepth = zeros(1,nl);
@@ -60,7 +62,7 @@ for ii = 1:nl
         sqrt(log(4)/pi.*F.*abs(dEdq(qRIdx)));
     disp(ii)
 end
-save(fullfile(findFolderInPath("atomInterferometry"),"magicDressed.mat"),"frequency","modDepth","-append")
+save(fullfile(findFolderInPath("atomInterferometry"),fileName),"frequency","modDepth","-append")
 
 %% Compute fringe frequency
 fringeFrequency = zeros(1,nl);
@@ -70,7 +72,7 @@ parfor ii = 1:nl
         * h / 2 / hbar / 2 / pi / 2 / pi;
     disp(ii)
 end
-save(fullfile(findFolderInPath("atomInterferometry"),"magicDressed.mat"),"fringeFrequency","-append")
+save(fullfile(findFolderInPath("atomInterferometry"),fileName),"fringeFrequency","-append")
 
 %% Compute tolerance
 toleranceTheory = zeros(1,nl);
@@ -78,7 +80,7 @@ toleranceTheoryRelative = toleranceTheory;
 phaseTol = pi/4;
 fval = zeros(1,nl);
 flag = zeros(1,nl);
-parfor ii = 1:100
+parfor ii = 1:nl
     qR = (1 - loopSizeTheory(ii));
     phi0 = fringeFrequency(ii) * 4 * pi * hbar / F * kL;
     [tolBound,fval(ii),flag(ii)] = fzero(@(x) hbar / F * kL * aiPhaseDressed(...
@@ -87,4 +89,4 @@ parfor ii = 1:100
     toleranceTheoryRelative(ii) = toleranceTheory(ii)/magicDepthTheory(ii);
     disp(ii)
 end
-save(fullfile(findFolderInPath("atomInterferometry"),"magicDressed.mat"),"toleranceTheory","toleranceTheoryRelative","-append")
+save(fullfile(findFolderInPath("atomInterferometry"),fileName),"toleranceTheory","toleranceTheoryRelative","-append")

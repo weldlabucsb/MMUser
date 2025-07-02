@@ -12,11 +12,13 @@ kL = laser.AngularWavenumber;
 Er = ol.RecoilEnergy;
 V0Guess = 6;
 dq = 1e-3;
+divisor = 5;
 g = 9.81;
 M = atom.mass;
-F = M * g;
+F = M * g / divisor;
 hbar = Constants.SI("hbar");
 h = hbar * 2 * pi;
+fileName = "magicStaticDivisor"+ num2str(divisor) + ".mat";
 
 %% Loop size list
 nl = 2000;
@@ -29,7 +31,7 @@ parfor ii = 1:nl
     magicDepthTheory(ii) = fminsearch(@(x) aiPhaseStatic(x,qR,dq),V0Guess);
     disp(ii)
 end
-save(fullfile(findFolderInPath("atomInterferometry"),"magicStatic.mat"),"loopSizeTheory","magicDepthTheory")
+save(fullfile(findFolderInPath("atomInterferometry"),fileName),"loopSizeTheory","magicDepthTheory")
 
 %% Compute modulation parameters
 frequency = zeros(1,nl);
@@ -54,7 +56,7 @@ for ii = 1:nl
         sqrt(log(4)/pi.*F.*abs(dEdq(qRIdx)));
     disp(ii)
 end
-save(fullfile(findFolderInPath("atomInterferometry"),"magicStatic.mat"),"frequency","modDepth","-append")
+save(fullfile(findFolderInPath("atomInterferometry"),fileName),"frequency","modDepth","-append")
 
 %% Compute fringe frequency
 fringeFrequency = zeros(1,nl);
@@ -63,4 +65,4 @@ parfor ii = 1:nl
     fringeFrequency(ii) = (aiPhaseStatic(magicDepthTheory(ii),qR,dq) * Er - frequency(ii) * loopSizeTheory(ii) * 2)...
         * h / 2 / hbar / 2 / pi;
 end
-save(fullfile(findFolderInPath("atomInterferometry"),"magicStatic.mat"),"fringeFrequency","-append")
+save(fullfile(findFolderInPath("atomInterferometry"),fileName),"fringeFrequency","-append")
