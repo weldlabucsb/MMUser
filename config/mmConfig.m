@@ -80,3 +80,7 @@ BecExpIsAutoAcquire = true;
 BecExpOdColormap = {jet}; %Change to your favorite colormap
 BecExpAtomName = "Lithium7";
 BecExpImagingStageList = ["LF","HF","NI"]; %List your possible imaging stages here. For example, if you do imaging at low/high magnetic fields, type ["LF","HF"].
+
+%% Imaging Options
+IsPCIAvailable = 1; % Logic dictating whether PCI should be enabled for MM
+PCIPhase = -pi/3; % Phase shift of phase contrast plate
