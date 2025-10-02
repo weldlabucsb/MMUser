@@ -83,4 +83,4 @@ BecExpImagingStageList = ["LF","HF","NI"]; %List your possible imaging stages he
 
 %% Imaging Options
 IsPCIAvailable = 1; % Logic dictating whether PCI should be enabled for MM
-PCIPhase = -pi/3; % Phase shift of phase contrast plate
+PCIPhase = -5*pi/4; % Phase shift of phase contrast plate
