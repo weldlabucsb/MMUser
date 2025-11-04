@@ -89,4 +89,6 @@ SimDataFormat = ".mat";
 SimIsAutoDelete = false;
 
 LatticeSeSim1D_DatabaseTableName = "lattice_schrodinger_equation_simulation_1d";
+LatticeSeSim1D_OutputVariableName = "WaveFunction";
+
 
