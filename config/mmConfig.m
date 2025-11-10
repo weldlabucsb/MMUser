@@ -80,3 +80,15 @@ BecExpIsAutoAcquire = true;
 BecExpOdColormap = {jet}; %Change to your favorite colormap
 BecExpAtomName = "Lithium7";
 BecExpImagingStageList = ["LF","HF","NI"]; %List your possible imaging stages here. For example, if you do imaging at low/high magnetic fields, type ["LF","HF"].
+
+%% Simulation
+SimParentPath = "B:\__Lab Member Folders\Xiao\SimulationData";
+SimDatabaseName = "simulation_local";
+SimDataPrefix = "run";
+SimDataFormat = ".mat"; 
+SimIsAutoDelete = false;
+
+LatticeSeSim1D_DatabaseTableName = "lattice_schrodinger_equation_simulation_1d";
+LatticeSeSim1D_OutputVariableName = "WaveFunction";
+
+
