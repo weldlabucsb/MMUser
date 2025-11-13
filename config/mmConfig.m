@@ -70,7 +70,7 @@ PhaseLockConfig = cell2table( ...
 %% BecExp
 CiceroComputerName = "GOB"; %The name of the computer running Cicero
 CiceroLogOrigin = "\\172.16.0.2\RunLogs"; %The path where Cicero logs are temporarily saved
-BecExpControlComputerName = "WOODHOUSE"; %The name of the computer running BecExp analysis
+BecExpControlComputerName = "PHYS-10WOODHOUS"; %The name of the computer running BecExp analysis
 BecExpParentPath = "B:\_Li\_LithiumData"; %The path where BecExp analysis data are saved
 BecExpDataPrefix = "run";
 BecExpDataFormat = ".tif"; 
