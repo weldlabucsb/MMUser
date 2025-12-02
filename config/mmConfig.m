@@ -83,7 +83,7 @@ BecExpImagingStageList = ["LF","HF","NI"]; %List your possible imaging stages he
 
 %% Simulation
 SimParentPath = "B:\__Lab Member Folders\Xiao\SimulationData";
-SimDatabaseName = "simulation_local";
+SimDatabaseName = "simulation";
 SimDataPrefix = "run";
 SimDataFormat = ".mat"; 
 SimIsAutoDelete = false;
