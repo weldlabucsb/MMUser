@@ -5,7 +5,7 @@ ch2 = [];
 ch3 = [];
 temp = [];
 
-dt = datetime(2025,4,1):calmonths(1):datetime(2025,7,22);
+dt = datetime(2025,12,16):calmonths(1):datetime(2025,12,18);
 dt.Format = 'yyyy-MM';
 
 for jj = 1:numel(dt)
@@ -26,7 +26,7 @@ for jj = 1:numel(dt)
 end
 
 figure
-plot(timeList,ch3)
+plot(timeList,ch1)
 xlabel('Time')
 ylabel('Pressure')
 render
