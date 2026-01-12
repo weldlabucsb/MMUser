@@ -14,7 +14,7 @@ se = LatticeSeSim1D("DrivenCavity", ...
     atom = atom,...
     laser = laser,...
     timeStep=1e-7,...
-    totalTime=80e-3,...
+    totalTime=101e-3,...
     spaceRange = 750e-06,...
     spaceStep = 1e-8);
 se.SavePeriod = 1e4;
@@ -38,7 +38,7 @@ laser = {ol.Laser};
 
 power = (1.26 + 1.44)/2;
 rescaledPower = power * 20 / 55;
-separation = 650e-6;
+separation = 680.6762e-6;
 
 wLaser1 = GaussianBeam( ...
     wavelength = 532e-9,...
@@ -66,6 +66,7 @@ se = LatticeSeSim1D("DrivenCavity", ...
     initialCondition = ic);
 
 % initial condition
+
 sigma = 25e-6;
 x = se.SimRun(1).SpaceList;
 x = x.';
@@ -83,21 +84,22 @@ end
 
 %% Driven cavity
 % Modulation parameters
-modFrequency = 101.01;
-modDepthRel = 0.0278;
+modFrequency = 95.5;
+modDepthRel = 0.0278; %peak-to-peak
 modDepthAbs = modDepthRel * separation;
+holdTime = (1/modFrequency) * 3/4;
 
 % nPhase = 8;
 % phase = linspace(0,2 * pi,nPhase);
-phase = 0:pi/6:2*(pi-pi/6);
-phase = -phase + pi/2;
+phase = 0:pi/6:(2*pi-pi/6);
+phase = -phase;
 nPhase = numel(phase);
 wallMod = cell(1,nPhase);
 
 for ii = 1:nPhase
     modWave1 = WaveformList("mod1",waveformOrigin = {ConstantWave},samplingRate=1e6);
     modWave2 = WaveformList("mod2",samplingRate=1e6,waveformOrigin = ...
-        {SineWave(frequency=modFrequency,amplitude=modDepthAbs,duration=0.2,phase=phase(ii))});   
+        {ConstantWave(duration=holdTime),SineWave(frequency=modFrequency,amplitude=modDepthAbs,duration=0.2,phase=phase(ii))});   
     wallMod{ii} = [modWave1,modWave2];
 end
 
@@ -113,7 +115,7 @@ sigma = 2e-6;
 x = se.SimRun(1).SpaceList;
 x = x.';
 kL = ol.Laser.AngularWavenumber;
-qIni = 0.75*kL;
+qIni = 0.73607*kL;
 [~,~,phi] = ol.computeBand1D(qIni,2,x);
 
 tExp = 20e-3;
