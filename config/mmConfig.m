@@ -2,11 +2,13 @@
 
 %% Path
 HardwareLogOrigin = "B:\_Li\_LithiumData\HardwareLogs"; %The path where all Hardware logs are temporarily saved
+% HardwareLogOrigin = "C:\Users\WOODHOUSE\Documents\MMData\HardwareLogs"; %The path where all Hardware logs are temporarily saved
 
 %% Database
 BecExpDatabaseName = "lithium_experiment"; %The postgresql database name for saving the experimental metadata. Just give it a name.
 BecExpDatabaseTableName = "main"; %The table. Usually I use 'main'.
 ServerName = ["localhost";"128.111.8.45"]; %The first server has to be localhost. The second is assumed to be remote.
+% ServerName = ["localhost";"localhost"];
 Port = [5432;5432];
 Username = ["postgres";"postgres";]; %The master username/password you use when you install PostgreSQL
 Password = ["SupermassiveBlackHole";"SupermassiveBlackHole"];
@@ -73,6 +75,7 @@ CiceroComputerName = "GOB"; %The name of the computer running Cicero
 CiceroLogOrigin = "\\172.16.0.2\RunLogs"; %The path where Cicero logs are temporarily saved
 BecExpControlComputerName = "PHYS-10WOODHOUS"; %The name of the computer running BecExp analysis
 BecExpParentPath = "B:\_Li\_LithiumData"; %The path where BecExp analysis data are saved
+% BecExpParentPath = "C:\Users\WOODHOUSE\Documents\MMData\becExp"; %The path where BecExp analysis data are saved
 BecExpDataPrefix = "run";
 BecExpDataFormat = ".tif"; 
 BecExpIsAutoDelete = false; %If you want to auto delete empty BecExp data folders
@@ -81,6 +84,11 @@ BecExpIsAutoAcquire = true;
 BecExpOdColormap = {jet}; %Change to your favorite colormap
 BecExpAtomName = "Lithium7";
 BecExpImagingStageList = ["LF","HF","NI"]; %List your possible imaging stages here. For example, if you do imaging at low/high magnetic fields, type ["LF","HF"].
+BecExpVariableMapping = [ ...
+    "ImagingTime","t_image";...
+    "TofTime","TOF";...
+    "KdPulseTime","KdPulseTime";...
+    ];
 
 %% Simulation
 SimParentPath = "B:\__Lab Member Folders\Xiao\SimulationData";
