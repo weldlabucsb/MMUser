@@ -1,5 +1,5 @@
 %% Pd to Keysight
-trialNumberPd2Keysight = 8574; % 100% moglabs mod depth
+trialNumberPd2Keysight = 8639; % 100% moglabs mod depth
 % trialNumberPd2Keysight = 8579; % 150% moglabs mod depth
 % trialNumberPd2Keysight = 8616; % 200% moglabs mod depth
 sName = "LatticeScope";
@@ -19,8 +19,8 @@ KP2Pd2Keysight = slmengine(KP2Pd,V, 'plot', 'on', 'increasing', 'on');
 
 
 %% Depth to Pd
-trialNumberKP1Kd = 8573;
-trialNumberKP2Kd = 8572;
+trialNumberKP1Kd = 8637;
+trialNumberKP2Kd = 8638;
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k = becExp.KapitzaDirac.DepthOverAmplitude;
