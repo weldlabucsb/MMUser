@@ -142,7 +142,7 @@ classdef KpPredistortion < handle
             obj.sendAndRead({wfl,wfl})
 
             %% Align time delay, downsample, and store
-            obj.processData([],true)
+            obj.processData([],true);
             obj.RunIdx = obj.RunIdx + 1;
         end
 
@@ -187,7 +187,7 @@ classdef KpPredistortion < handle
                 obj.sendAndRead({wfl,wfl});
 
                 %% Align time delay, downsample, and store
-                obj.processData([],false)
+                obj.processData([],false);
                 obj.RunIdx = obj.RunIdx + 1;
             end
         end
@@ -274,57 +274,7 @@ classdef KpPredistortion < handle
                             duration=duration,...
                             phase = 3 * pi / 2 ...
                             );
-
-                        %% Predict the raw AWG voltage (Bounded to +/- 1V by tanhLayer)
-                        tList = targetWf{ii}.StartTime : targetWf{ii}.TimeStep : targetWf{ii}.EndTime;
-                        ns = numel(targetWf{ii}.Sample);
-                        switch obj.Method
-                            case "LSTM"
-                                if obj.IsIncludeAmpOffset
-                                    predictedAwg = obj.mlWf2realWf(predict(obj.Network{ii},...
-                                        [obj.realScope2MlScope(ii,targetWf{ii}.Sample,laserPower);...
-                                        ones(1,ns)*targetAmp/2 ./ obj.AmplitudeMaximum(ii) * 2;...
-                                        obj.realScope2MlScope(ii,ones(1,ns)*targetOffset,laserPower)...
-                                        ]));
-                                else
-                                    predictedAwg = obj.mlWf2realWf(predict(obj.Network{ii},...
-                                        [obj.realScope2MlScope(ii,targetWf{ii}.Sample,laserPower);...
-                                        ]));
-                                end
-                            case "NARX"
-                                ideal_target_mapped = obj.realScope2MlScope(ii,targetWf{ii}.Sample,laserPower);
-                                ideal_target_cell = con2seq(ideal_target_mapped);
-                                % 1. Find the maximum delay your network requires
-                                % MATLAB stores this automatically in the numInputDelays property
-                                net_open = obj.Network{ii};
-                                max_delay = net_open.numInputDelays;
-
-                                % 2. Extract EXACTLY that many points from the very end of your last DAgger iteration
-                                last_X = obj.Dataset(ii).X{end}(:, end-max_delay+1:end);
-                                last_Y = obj.Dataset(ii).Y{end}(:, end-max_delay+1:end);
-
-                                % 3. Convert these small history chunks to sequence format
-                                last_X_cell = con2seq(last_X);
-                                last_Y_cell = con2seq(last_Y);
-
-                                % 4. Trick preparets into perfectly formatting our initial states (Xi, Ai)
-                                % Because last_X_cell is exactly 'max_delay' long, preparets consumes it entirely
-                                % to build the initial delay states, leaving no leftover timesteps.
-                                % 4. Prime the OPEN-LOOP states
-                                [~, Xi_open, Ai_open] = preparets(net_open, last_X_cell, {}, last_Y_cell);
-
-                                % 5. Close the loop AND translate the states!
-                                % This converts the 2-input open-loop states into 1-input closed-loop states
-                                [net_closed, Xi_closed, Ai_closed] = closeloop(net_open, Xi_open, Ai_open);
-
-                                % 6. Predict!
-                                % Now we feed the closed-loop states into the closed-loop network
-                                predicted_awg_cell = net_closed(ideal_target_cell, Xi_closed, Ai_closed);
-                                predictedAwg = obj.mlWf2realWf(cell2mat(predicted_awg_cell));
-                        end
-                        awgWf = InterpolatedWaveform(duration = duration,samplingRate=awgSr);
-                        awgWf.TimeData = tList;
-                        awgWf.SampleData = predictedAwg;
+                        awgWf = obj.predictAwg(ii,targetWf{ii},laserPower);
                         wfl{ii} = WaveformList("1",waveformOrigin={awgWf},samplingRate=awgSr);
 
                         % % c. PHYSICS CONSTRAINT 2: Enforce Strict Periodicity
@@ -346,7 +296,7 @@ classdef KpPredistortion < handle
                     %% Send waveform and process
                     pause(1)
                     obj.sendAndRead(wfl)
-                    obj.processData(targetWf,false)
+                    obj.processData(targetWf,false);
                     obj.RunIdx = obj.RunIdx + 1;
                 end
                 obj.IterationIdx = obj.IterationIdx + 1;
@@ -381,6 +331,143 @@ classdef KpPredistortion < handle
             end
         end
 
+        function kpTest(obj,isDc)
+            arguments
+                obj
+                isDc = false
+            end
+            V0 = 6;
+            nGrid = 10;
+            alphaList = linspace(2,30,nGrid);
+            fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
+            errorList = zeros(nGrid,nGrid,obj.NChannel);
+            laserPower = obj.measureLaserPower;
+            for aa = 1:nGrid
+                for ff = 1:nGrid
+                    wfl = cell(1,2);
+                    targetWfl = cell(1,2);
+                    nCycle = floor(obj.SineDuration * fList(ff));
+                    for ii = 1:obj.NChannel
+                        [wfl{ii},targetWfl{ii}] = obj.predictKp(ii,V0,alphaList(aa),obj.Beta,fList(ff),nCycle,laserPower,isDc);
+                    end
+                    obj.sendAndRead(wfl)
+                    for ii = 1:obj.NChannel
+                        [scopeMl,targetMl] = obj.processData(targetWfl{ii},false,false);
+                        measured = obj.mlScope2realScope(ii,scopeMl,laserPower);
+                        offset = mean(targetMl);
+                        errorList(ff,aa,ii) = obj.computeErrorRaw(measured,targetMl,offset);
+                    end
+                end
+            end
+            for ii = 1:obj.NChannel
+                close(figure(4830+ii))
+                figure(4830+ii)
+                img = imagesc(errorList(:,:,ii));
+                img.XData = alphaList;
+                img.YData = fList / 1e6;
+                xlabel("\alpha")
+                ylabel("f [MHz]")
+                cb = colorbar;
+                cb.Label.String = "Error, KP"+ii;
+                title("Mean Error = " + mean(errorList(:,:,ii),"all"))
+            end
+        end
+
+        function [controlWfl,targetWfl] = predictKp(obj,chIdx,V0,alpha,beta,f,nCycle,laserPower,isDc)
+            calibName = "KP" + chIdx + "Depth2Pd";
+            kdCalib = loadVar(LatticeCalib.mat,calibName);
+            sr = obj.SamplingRateAwg;
+            duration = 1/f * nCycle;
+            phi = asin(-2/alpha/beta);
+            if chIdx == 1
+                depthWf = SineWave(...
+                    frequency = f,...
+                    amplitude= alpha * beta * V0,...
+                    offset = alpha / 2 * V0,...
+                    samplingRate = sr,...
+                    duration = duration,...
+                    phase = pi + phi ...
+                    );
+            else
+                depthWf = SineWave(...
+                    frequency = f,...
+                    amplitude= (1+alpha/2) * V0 * (alpha/(2+alpha)) * 2 * beta,...
+                    offset = (1+alpha/2) * V0,...
+                    samplingRate = sr,...
+                    duration = duration,...
+                    phase = phi ...
+                    );
+            end
+            tList = depthWf{ii}.StartTime : depthWf{ii}.TimeStep : depthWf{ii}.EndTime;
+            targetWf = InterpolatedWaveform(duration = duration,samplingRate=sr);
+            targetWf.TimeData = tList;
+            targetWf.SampleData = kdCalib(depthWf.Sample);
+            targetWfl = WaveformList("1",waveformOrigin={targetWf},samplingRate=sr);
+            if ~isDc
+                controlWf = obj.predictAwg(chIdx,targetWf,laserPower);
+            else
+                rampCalib = loadVar("LatticeCalib.mat","KP" + chIdx + "Pd2Keysight");
+                controlWfSampe = slmeval(targetWf.Sample,rampCalib);
+                controlWf = InterpolatedWaveform(duration = duration,samplingRate=sr);
+                controlWf.SampleData = controlWfSampe;
+                controlWf.TimeData = tList;
+            end
+            controlWfl = WaveformList("1",waveformOrigin={controlWf},samplingRate=sr);
+        end
+
+        function controlWfl = predictAwg(obj,chIdx,targetWf,laserPower)
+            tList = targetWf.StartTime : targetWf.TimeStep : targetWf.EndTime;
+            ns = numel(targetWf.Sample);
+            switch obj.Method
+                case "LSTM"
+                    if obj.IsIncludeAmpOffset
+                        predictedAwg = obj.mlWf2realWf(predict(obj.Network{chIdx},...
+                            [obj.realScope2MlScope(chIdx,targetWf.Sample,laserPower);...
+                            ones(1,ns)*targetWf.Amplitude/2 ./ obj.AmplitudeMaximum(chIdx) * 2;...
+                            obj.realScope2MlScope(chIdx,ones(1,ns)*targetWf.Offset,laserPower)...
+                            ]));
+                    else
+                        predictedAwg = obj.mlWf2realWf(predict(obj.Network{chIdx},...
+                            [obj.realScope2MlScope(chIdx,targetWf.Sample,laserPower);...
+                            ]));
+                    end
+                case "NARX"
+                    ideal_target_mapped = obj.realScope2MlScope(chIdx,targetWf.Sample,laserPower);
+                    ideal_target_cell = con2seq(ideal_target_mapped);
+                    % 1. Find the maximum delay your network requires
+                    % MATLAB stores this automatically in the numInputDelays property
+                    net_open = obj.Network{chIdx};
+                    max_delay = net_open.numInputDelays;
+
+                    % 2. Extract EXACTLY that many points from the very end of your last DAgger iteration
+                    last_X = obj.Dataset(chIdx).X{end}(:, end-max_delay+1:end);
+                    last_Y = obj.Dataset(chIdx).Y{end}(:, end-max_delay+1:end);
+
+                    % 3. Convert these small history chunks to sequence format
+                    last_X_cell = con2seq(last_X);
+                    last_Y_cell = con2seq(last_Y);
+
+                    % 4. Trick preparets into perfectly formatting our initial states (Xi, Ai)
+                    % Because last_X_cell is exactly 'max_delay' long, preparets consumes it entirely
+                    % to build the initial delay states, leaving no leftover timesteps.
+                    % 4. Prime the OPEN-LOOP states
+                    [~, Xi_open, Ai_open] = preparets(net_open, last_X_cell, {}, last_Y_cell);
+
+                    % 5. Close the loop AND translate the states!
+                    % This converts the 2-input open-loop states into 1-input closed-loop states
+                    [net_closed, Xi_closed, Ai_closed] = closeloop(net_open, Xi_open, Ai_open);
+
+                    % 6. Predict!
+                    % Now we feed the closed-loop states into the closed-loop network
+                    predicted_awg_cell = net_closed(ideal_target_cell, Xi_closed, Ai_closed);
+                    predictedAwg = obj.mlWf2realWf(cell2mat(predicted_awg_cell));
+            end
+            awgSr = obj.SamplingRateAwg;
+            controlWfl = InterpolatedWaveform(duration = targetWf.Duration,samplingRate=awgSr);
+            controlWfl.TimeData = tList;
+            controlWfl.SampleData = predictedAwg;
+        end
+        
         function updateNetwork(obj)
             tic
             for ii = 1:obj.NChannel
@@ -451,58 +538,63 @@ classdef KpPredistortion < handle
             laserPower = mean(obj.Scope.Sample(3,:));
         end
 
-        function processData(obj,targetWf,isSaveDelay)
+        function [scopeMl,targetMl,awgMl] =  processData(obj,chIdx,targetWf,isSaveDelay,isSaveData)
             arguments
                 obj KpPredistortion
+                chIdx = 1
                 targetWf = []
                 isSaveDelay = false
+                isSaveData = true
             end
             ignoredPoints = obj.NIgnoredSample;
             scopeSr = obj.SamplingRateScope;
             awgSr = obj.SamplingRateAwg;
             mlSr = obj.SamplingRateMl;
             laserPower = mean(obj.Scope.Sample(3,:));
-            for ii = 1:obj.NChannel
-                obj.Dataset(ii).LaserPower(obj.RunIdx) = laserPower;
-                scopeRaw = obj.Scope.Sample(ii,:);
-                awgRaw = obj.MainAwg.WaveformList{ii}.Sample;
-                awgUp = resample(awgRaw, scopeSr, awgSr);
+            if isSaveData
+                obj.Dataset(chIdx).LaserPower(obj.RunIdx) = laserPower;
+            end
+            scopeRaw = obj.Scope.Sample(chIdx,:);
+            awgRaw = obj.MainAwg.WaveformList{chIdx}.Sample;
+            awgUp = resample(awgRaw, scopeSr, awgSr);
 
-                %% Compute delay
-                if isSaveDelay
-                    obj.Delay(ii) = finddelay(awgUp, scopeRaw);
-                end
+            %% Compute delay
+            if isSaveDelay
+                obj.Delay(chIdx) = finddelay(awgUp, scopeRaw);
+            end
 
-                if obj.Delay(ii) > 0
-                    % Scope is delayed relative to AWG (Expected physical reality)
-                    scopeAligned = scopeRaw(obj.Delay(ii)+1:end);
-                else
-                    error("Delay is found to be negative. Check if you have a signal.")
-                end
+            if obj.Delay(chIdx) > 0
+                % Scope is delayed relative to AWG (Expected physical reality)
+                scopeAligned = scopeRaw(obj.Delay(chIdx)+1:end);
+            else
+                error("Delay is found to be negative. Check if you have a signal.")
+            end
 
-                %% Resample to match the machine learning sampling rate
-                scopeMl = resample(scopeAligned, mlSr, scopeSr);
-                awgMl   = resample(awgRaw, mlSr, awgSr);
+            %% Resample to match the machine learning sampling rate
+            scopeMl = resample(scopeAligned, mlSr, scopeSr);
+            awgMl   = resample(awgRaw, mlSr, awgSr);
 
-                %% Ensure they match exactly in length
-                minLen = min(length(scopeMl), length(awgMl));
-                scopeMl = scopeMl(ignoredPoints:minLen-ignoredPoints);
-                awgMl = awgMl(ignoredPoints:minLen-ignoredPoints);
-                scopeMl = reshape(scopeMl, 1, []);
-                awgMl = reshape(awgMl, 1, []);
-                awgMl = obj.realWf2MlWf(awgMl);
-                scopeMl = obj.realScope2MlScope(ii,scopeMl,laserPower);
+            %% Ensure they match exactly in length
+            minLen = min(length(scopeMl), length(awgMl));
+            scopeMl = scopeMl(ignoredPoints:minLen-ignoredPoints);
+            awgMl = awgMl(ignoredPoints:minLen-ignoredPoints);
+            scopeMl = reshape(scopeMl, 1, []);
+            awgMl = reshape(awgMl, 1, []);
+            awgMl = obj.realWf2MlWf(awgMl);
+            scopeMl = obj.realScope2MlScope(chIdx,scopeMl,laserPower);
+            if ~isempty(targetWf)
+                targetMl = resample(targetWf.Sample, mlSr, awgSr);
+                targetMl = targetMl(ignoredPoints:minLen-ignoredPoints);
+            else
+                targetMl = ones(1,numel(awgMl)) * obj.AmplitudeMaximum(chIdx)/2;
+            end
 
-                %% Save data
-                obj.Dataset(ii).Y{obj.RunIdx} = awgMl;
-                if isempty(targetWf)
-                    obj.Dataset(ii).XTarget{obj.RunIdx} = ones(1,numel(awgMl)) * obj.AmplitudeMaximum(ii)/2;
-                else
-                    target = resample(targetWf{ii}.Sample, mlSr, awgSr);
-                    obj.Dataset(ii).XTarget{obj.RunIdx} = target(ignoredPoints:minLen-ignoredPoints);
-                end
+            %% Save data
+            if isSaveData
+                obj.Dataset(chIdx).Y{obj.RunIdx} = awgMl;
+                obj.Dataset(chIdx).XTarget{obj.RunIdx} = targetMl;
                 if ~obj.IsIncludeAmpOffset
-                    obj.Dataset(ii).X{obj.RunIdx} = scopeMl;
+                    obj.Dataset(chIdx).X{obj.RunIdx} = scopeMl;
                 else
                     % compute offset and amplitude
                     if isSaveDelay
@@ -513,9 +605,8 @@ classdef KpPredistortion < handle
                     offset = movmean(scopeMl, windowSize);
                     centeredScope = scopeMl - offset;
                     [amp, ~] = envelope(centeredScope, windowSize, 'peak');
-                    obj.Dataset(ii).X{obj.RunIdx} = [scopeMl;amp;offset];
+                    obj.Dataset(chIdx).X{obj.RunIdx} = [scopeMl;amp;offset];
                 end
-
             end
         end
 
@@ -528,15 +619,24 @@ classdef KpPredistortion < handle
                         measured =  obj.mlScope2realScope(ii,obj.Dataset(ii).X{runIdx(jj)}(1,:),obj.Dataset(ii).LaserPower(runIdx(jj)));
                         target = obj.Dataset(ii).XTarget{runIdx(jj)}(1,:);
                         offset = mean(target);
-                        if obj.IsNormalizeError
-                            be(jj) = sqrt(mean(abs(measured - target).^2))/offset;
-                        else
-                            be(jj) = sqrt(mean(abs(measured - target).^2));
-                        end
+                        be(jj) = obj.computeErrorRaw(measured,target,offset);
                     end
                     obj.BatchError(ii,b) = mean(be);
                     obj.BatchErrorStd(ii,b) = std(be);
                 end
+            end
+        end
+
+        function er = computeErrorRaw(measured,target,offset)
+            arguments
+                measured
+                target
+                offset = 0.5
+            end
+            if obj.IsNormalizeError
+                er = sqrt(mean(abs(measured - target).^2))/offset;
+            else
+                er = sqrt(mean(abs(measured - target).^2));
             end
         end
 
@@ -633,6 +733,7 @@ classdef KpPredistortion < handle
             box on
             drawnow
         end
+    
     end
 end
 
