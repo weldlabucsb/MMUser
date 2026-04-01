@@ -1,0 +1,1219 @@
+classdef KpPredistortion < handle
+    %KPPREDISTORTION Summary of this class goes here
+    %   Detailed explanation goes here
+
+    properties
+        Method = "LSTM"
+        NChannel = 2
+        RunIdx = 1
+        IterationIdx = 1
+        SamplingRateAwg = 20e6 % keysight sampling rate
+        SamplingRateMl = 20e6 % Machine learning sampling rate
+        NSampleScope = 1e6 % Number of samples on the scope
+        SamplingRateScope = 1e9
+        VoltageRange = [-1,0.8] % Keysight output voltage range
+        PowerVoltageRange = [1,1.3] % Precilaser power PD voltage range
+        FrequencyRange = [100e3,1.2e6] % Frequency range of modulation
+        AmplitudeMaximum = [0.6, 1.1] % Maximum amplitude on the scope for KP1 and KP2
+        ChirpDuration = 1e-3 % Duration of the chirp pulse
+        SineDuration = 1e-3 % Duration of the sine pulse
+        Beta = 0.8 % Reduction factor of AM modulation
+        IgnoredTime = 1e-6
+        IsIncludeAmpOffset = true % If we want to include amplitude and offset in the training
+        IsNormalizeError = false % If we normalize the RMS error to the target offset
+        IsCpu = true % If we use CPU to do training
+        WindowSize = 400 % For calculating the amplitude and offset
+        NOffset = 10 % Numbers of offset for pretraining data set
+        NBatch = 5 % Numbers of runs per batch
+        NIteration = 50     % Maximum number of outer DAgger loops
+        ErrorThreshold  = 0.01;   % Acceptable average RMSE (e.g., 10 mV)
+    end
+
+    properties (SetAccess = public)
+        ConsecutiveGood = 0;      % Counter for convergence tracking
+        BatchError = [1;1];
+        BatchErrorStd = [0;0];
+        Scope
+        PulseAwg
+        MainAwg
+        Delay
+        DelayFunc
+        Offset = [0,0];
+        Dataset
+        Network cell
+        NetworkLayers
+        NetworkOptions
+        Error = cell(1,2)
+    end
+
+    properties (Constant)
+        MainAwgAddress = "TCPIP0::172.16.0.3::inst0::INSTR"
+        PulseAwgAddress = "TCPIP0::172.16.0.4::inst0::INSTR"
+        ScopeAddress = "TCPIP0::172.16.0.6::inst0::INSTR"
+    end
+
+    properties (Dependent)
+        NIgnoredSample % Number of ignored samples at the beginning and the end
+    end
+
+    methods
+        function obj = KpPredistortion()
+            %KPPREDISTORTION Construct an instance of this class
+            %   Detailed explanation goes here
+        end
+        function nis = get.NIgnoredSample(obj)
+            nis = round(obj.SamplingRateMl * obj.IgnoredTime);
+        end
+        function setHardware(obj)
+            %% Scope
+            obj.Scope = SiglentSDS2104XPlus(obj.ScopeAddress);
+            obj.Scope.Duration = 10^round(log10(obj.ChirpDuration));
+            % if obj.NChannel == 1
+            % obj.Scope.IsEnabled = [true,false,false,false];
+            % else
+            obj.Scope.IsEnabled = [true,true,false,false];
+            % end
+            obj.Scope.TriggerSource = "External";
+            obj.Scope.TriggerLevel = 0.3;
+            obj.Scope.VerticalRange = [0.6,1.2,1.5,2];
+            obj.Scope.VerticalOffset= [-0.3+0.02,-0.6+0.02,-0.75 + .02,0];
+            obj.Scope.NSample = 10^round(log10(obj.ChirpDuration)) * obj.SamplingRateScope;
+            obj.Scope.connect
+            obj.Scope.set
+            obj.Scope.startFromEdge
+
+            %% Pulse AWG
+            obj.PulseAwg = Keysight33500B(obj.PulseAwgAddress);
+            obj.PulseAwg.SamplingRate = [1000,obj.PulseAwg.SamplingRateLimit/10];
+            obj.PulseAwg.TriggerSource(2) = "Software";
+            obj.PulseAwg.IsOutput = [false,true];
+            obj.PulseAwg.OutputMode = ["Normal","Normal"];
+            pulseWf = WaveformList("pulse",waveformOrigin = { ...
+                ConstantWave(duration = 5e-6, offset =3)...
+                });
+            obj.PulseAwg.WaveformList = {[],pulseWf};
+            obj.PulseAwg.OutputLoad(2) = "Infinity";
+            obj.PulseAwg.connect
+            obj.PulseAwg.set
+            obj.PulseAwg.upload
+
+            %% Main AWG
+            wfl = WaveformList("const",waveformOrigin = { ...
+                ConstantWave(duration = 1e-3, offset = -1)...
+                });
+            obj.MainAwg = Keysight33600A(obj.MainAwgAddress);
+            obj.MainAwg.WaveformList = {wfl,wfl};
+            obj.MainAwg.SamplingRate = [obj.SamplingRateAwg,obj.SamplingRateAwg];
+            obj.MainAwg.TriggerSource = ["External","External"];
+            obj.MainAwg.IsOutput = [true,true];
+            obj.MainAwg.OutputMode = ["Normal","Normal"];
+            obj.MainAwg.OutputLoad = ["Infinity","Infinity"];
+            obj.MainAwg.Offset = [-1,-1];
+            obj.MainAwg.connect
+            obj.MainAwg.set
+            obj.MainAwg.upload
+
+        end
+
+        function initializeDataset(obj)
+            s.X = {};
+            s.Y = {};
+            s.XTarget = {};
+            s.LaserPower = [];
+            s(2) = s;
+            obj.Dataset = s;
+            obj.RunIdx = 1;
+            obj.IterationIdx = 1;
+        end
+
+        function measureOffset(obj)
+            wfl = WaveformList("const",waveformOrigin = { ...
+                ConstantWave(duration = 1e-3, offset = -1)...
+                });
+            obj.sendAndRead({wfl,wfl})
+            pause(0.3)
+            for ii = 1:obj.NChannel
+                obj.Offset(ii) = mean(obj.Scope.Sample(ii,:));
+            end
+        end
+
+        function getChirpData(obj)
+            disp('Gathering initial seed data (Chirp)...');
+            %% Generate a broad chirp to teach basic physics
+            wf = LinearFrequencyRamp( ...
+                duration = obj.ChirpDuration, ...
+                amplitude= range(obj.VoltageRange), ...
+                offset   = mean(obj.VoltageRange)/2, ...
+                startFrequency = obj.FrequencyRange(1),...
+                stopFrequency = obj.FrequencyRange(2),...
+                samplingRate = obj.SamplingRateAwg ...
+                );
+            wfl = WaveformList("chirp",waveformOrigin = {wf});
+
+            %% Execute hardware functions
+            obj.sendAndRead({wfl,wfl})
+
+            %% Align time delay, downsample, and store
+            for ii = 1:obj.NChannel
+                if obj.Method == "MLP"
+                    obj.processData(ii,[],true,false);
+                else
+                    obj.processData(ii,[],true);
+                    obj.RunIdx = obj.RunIdx + 1;
+                end
+            end
+        end
+
+        function measureDelay(obj)
+            nGrid = 20;
+            fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
+            obj.setScopeSine
+            scopeSr = obj.SamplingRateScope;
+            awgSr = obj.SamplingRateAwg;
+            delay = cell(1,obj.NChannel);
+            for ff = 1:nGrid
+                %% Generate a broad chirp to teach basic physics
+                wf = SineWave( ...
+                    duration = obj.SineDuration, ...
+                    amplitude= 0.8, ...
+                    offset   = 0, ...
+                    frequency = fList(ff),...
+                    samplingRate = obj.SamplingRateAwg ...
+                    );
+                wfl = WaveformList("sine",waveformOrigin = {wf});
+
+                %% Execute hardware functions
+                obj.sendAndRead({wfl,wfl})
+
+                %% Find delay
+                T = 1/fList(ff);
+                T = round(T * scopeSr * 5);
+                for ii = 1:obj.NChannel
+                    scopeRaw = obj.Scope.Sample(ii,:);
+                    awgRaw = obj.MainAwg.WaveformList{ii}.Sample;
+                    awgUp = resample(awgRaw, scopeSr, awgSr);
+                    % len = min([length(awgUp),length(scopeRaw)]);
+                    len = T;
+                    scopeRaw = scopeRaw(1:len + 1850); % The number is roughly the delay
+                    awgUp = awgUp(1:len);
+
+                    %% Compute delay
+                    % d = finddelay(awgUp, scopeRaw, 2500);
+                    awgUp = awgUp - min(awgUp);
+                    awgUp = awgUp ./ max(awgUp);
+                    scopeRaw = scopeRaw - min(scopeRaw);
+                    scopeRaw = scopeRaw ./ max(scopeRaw);
+                    % scopeRaw = lowpass(scopeRaw, 2e6, scopeSr);
+                    % awgUp = lowpass(awgUp, 2e6, scopeSr);
+                    [x,y,d] = alignsignals(awgUp,scopeRaw);
+                    delay{ii}(ff) = d;
+                    plot(1:numel(x),x,1:numel(y),y)
+                end
+            end
+            obj.DelayFunc = cell(1,obj.NChannel);
+            for ii = 1:obj.NChannel
+                obj.DelayFunc{ii} = @(f) round(interp1(fList,delay{ii},f,'linear','extrap'));
+            end
+            close all
+        end
+
+        function getKpData(obj,V0)
+            obj.setScopeSine
+            nGrid = 10;
+            alphaList = linspace(2/obj.Beta,30,nGrid);
+            fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
+            % laserPower = obj.measureLaserPower;
+            rampCalib = cell(1,obj.NChannel);
+            for ii = 1:obj.NChannel
+                rampCalib{ii} = loadVar("LatticeCalib.mat","KP" + ii + "Pd2Keysight");
+            end
+            ignoredPoints = obj.NIgnoredSample;
+            scopeSr = obj.SamplingRateScope;
+            awgSr = obj.SamplingRateAwg;
+            mlSr = obj.SamplingRateMl;
+
+            %% Training parameters
+            nIter = 50;        % How many times to update the waveform
+            PRange = [0.3,0.6];        % The "Proportional" gain (usually 0.3 to 0.8)
+            PFunc = @(f) (-tanh(2 * (f-100e3)/(1.2e6-100e3)) + 1) * range(PRange) + PRange(1);
+            lowPass = 10e6;
+
+            %% Main loop
+            for aa = 1:nGrid
+                for ii = 1:obj.NChannel
+                    calibName = "KP" + ii + "Depth2Pd";
+                    kdCalib = loadVar("LatticeCalib.mat",calibName);
+                    VMax = kdCalib(alphaList(aa) * V0 * 2);
+                    obj.Scope.VerticalRange(ii) = VMax * 1.1;
+                    obj.Scope.VerticalOffset(ii) = -VMax/2;
+                end
+                obj.Scope.set
+                pause(0.5)
+                for ff = 1:nGrid
+                    if alphaList(aa) <= 6
+                        nIter = 100;
+                    else
+                        nIter = 50;
+                    end
+                    P = PFunc(fList(ff));
+                    laserPower = 1;
+                    nCycle = floor(obj.SineDuration * fList(ff));
+                    targetWf = cell(1,2);
+                    errorHistory = cell(1,obj.NChannel);
+                    for ii = 1:obj.NChannel
+                        targetWfl = obj.getKpTarget(ii,V0,alphaList(aa),obj.Beta,fList(ff),nCycle,0);
+                        targetWf{ii} = targetWfl.WaveformOrigin{1};
+                    end
+                    controlWfl = cell(1,2);
+                    for ii = 1:obj.NChannel
+                        [targetWf{ii},controlWfl{ii}] = obj.guessFromDc(...
+                            targetWf{ii}.Frequency,...
+                            targetWf{ii}.Amplitude,...
+                            targetWf{ii}.Offset,...
+                            rampCalib{ii},0);
+                    end
+
+                    for kk = 1:nIter
+                        % Feedback control
+                        obj.sendAndRead(controlWfl)
+                        controlWfl = cell(1,2);
+                        tList = targetWf{1}.StartTime : targetWf{1}.TimeStep : targetWf{1}.EndTime;
+                        for ii = 1:obj.NChannel
+                            delay = obj.DelayFunc{ii}(fList(ff));
+                            scopeRaw = obj.Scope.Sample(ii,:);
+                            awgRaw = obj.MainAwg.WaveformList{ii}.Sample;
+                            scopeAligned = scopeRaw(delay+1:end);
+                            scopeMl = resample(scopeAligned, mlSr, scopeSr);
+                            awgMl   = resample(awgRaw, mlSr, awgSr);
+
+                            minLen = min(length(scopeMl), length(awgMl));
+                            scopeMl = scopeMl(1:minLen);
+                            awgMl = awgMl(1:minLen);
+                            scopeMl = obj.realScope2MlScope(ii,scopeMl,laserPower);
+                            targetMl = resample(targetWf{ii}.Sample, mlSr, awgSr);
+                            targetMl = targetMl(1:minLen);
+                            targetMl = obj.realScope2MlScope(ii,targetMl,laserPower);
+
+                            errorCurrent = targetMl - scopeMl;
+                            errorHistory{ii}(kk) = rms(errorCurrent(ignoredPoints+1:end - ignoredPoints)) ./...
+                                (obj.realScope2MlScope(ii,targetWf{ii}.Offset,laserPower)+1);
+                            awgMl = awgMl + P * errorCurrent;
+                            awgMl = lowpass(awgMl, lowPass, awgSr);
+                            awgMl = max(min(awgMl, obj.VoltageRange(2)), obj.VoltageRange(1));
+                            controlWf = InterpolatedWaveform(duration = obj.SineDuration,samplingRate=awgSr);
+                            controlWf.TimeData = tList;
+                            controlWf.SampleData = awgMl;
+                            controlWfl{ii} = WaveformList("1",waveformOrigin={controlWf},samplingRate=awgSr);
+
+
+                            % --- Visualization ---
+                            figure(3523+ii)
+                            subplot(2,1,1);
+                            plot(tList*1e6, obj.mlScope2realScope(ii,targetMl,laserPower), 'k--', 'LineWidth', 1.5); hold on;
+                            plot(tList*1e6, obj.mlScope2realScope(ii,scopeMl,laserPower), 'r', 'LineWidth', 1); hold off;
+                            title(sprintf('Iteration %d: Target vs Measured Output', kk));
+                            xlabel('Time (us)'); ylabel('Voltage (V)');
+                            legend('Target', 'Measured');
+
+                            subplot(2,1,2);
+                            semilogy(1:kk, errorHistory{ii}(1:kk), '-o', 'LineWidth', 1.5);
+                            title('RMS Error Convergence');
+                            xlabel('Iteration'); ylabel('Normalized RMS Error');
+                            grid on;
+
+                            drawnow;
+                        end
+                    end
+                    for ii = 1:obj.NChannel
+                        obj.Dataset(ii).X{obj.RunIdx} = [V0;fList(ff);alphaList(aa);obj.Beta];
+                        obj.Dataset(ii).Y{obj.RunIdx} = controlWfl{ii}.Sample;
+                        obj.Error{ii}(obj.RunIdx) = errorHistory{ii}(end);
+
+                        disp("KP" + ii +", f index " + ff + ", amp index " + aa)
+                        disp("error: "+errorHistory{ii}(end))
+                    end
+                    obj.RunIdx = obj.RunIdx + 1;
+                end
+            end
+        end
+
+        function getFourierData(obj)
+            %% Generate target waveform parameters
+            nGrid = 5;
+            ampMaxActual = obj.AmplitudeMaximum * 0.88;
+            fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
+            % fList = linspace(obj.FrequencyRange(2),obj.FrequencyRange(2),1);
+            ignoredPoints = obj.NIgnoredSample;
+            scopeSr = obj.SamplingRateScope;
+            awgSr = obj.SamplingRateAwg;
+            mlSr = obj.SamplingRateMl;
+            offsetList = cell(1,obj.NChannel);
+            rampCalib = cell(1,obj.NChannel);
+            for ii = 1:obj.NChannel
+                offsetList{ii} = linspace(0.02,obj.AmplitudeMaximum(ii)/2,nGrid);
+                % offsetList{ii} = linspace(ampMaxActual(ii)/2,ampMaxActual(ii)/2,1);
+                rampCalib{ii} = loadVar("LatticeCalib.mat","KP" + ii + "Pd2Keysight");
+            end
+            obj.setScopeSine
+
+            %% Training parameters
+            nIter = 50;        % How many times to update the waveform
+            PRange = [0.3,0.6];        % The "Proportional" gain (usually 0.3 to 0.8)
+            PFunc = @(f) (-tanh(2 * (f-100e3)/(1.2e6-100e3)) + 1) * range(PRange) + PRange(1);
+            lowPass = 10e6;
+            nHarmonics = 5; % Up to 5th harmonic
+
+            %% Main loop
+            for ff = 1:numel(fList)
+                P = PFunc(fList(ff));
+                for oo = 1:numel(offsetList{1})
+                    ampList = cell(1,obj.NChannel);
+                    for ii = 1:obj.NChannel
+                        maxAmp = min([offsetList{ii}(oo),ampMaxActual(ii) - offsetList{ii}(oo)]);
+                        ampList{ii} = linspace(0.01,maxAmp,nGrid) * obj.Beta * 2;
+                    end
+                    for aa = 1:numel(ampList{1})
+                        % Guess the control waveform from DC
+                        % calibration
+                        targetWf = cell(1,obj.NChannel);
+                        controlWfl = cell(1,2);
+                        for ii = 1:obj.NChannel
+                            [targetWf{ii},controlWfl{ii}] = obj.guessFromDc(...
+                                fList(ff),...
+                                ampList{ii}(aa),...
+                                offsetList{ii}(oo),...
+                                rampCalib{ii},0);
+                        end
+
+                        errorHistory = cell(1,obj.NChannel);
+                        laserPower = 1;
+                        tList = targetWf{1}.StartTime : targetWf{1}.TimeStep : targetWf{1}.EndTime;
+                        for kk = 1:nIter
+                            % Feedback control
+
+                            obj.sendAndRead(controlWfl)
+                            controlWfl = cell(1,2);
+                            for ii = 1:obj.NChannel
+                                delay = obj.DelayFunc{ii}(fList(ff));
+                                scopeRaw = obj.Scope.Sample(ii,:);
+                                awgRaw = obj.MainAwg.WaveformList{ii}.Sample;
+                                scopeAligned = scopeRaw(delay+1:end);
+                                scopeMl = resample(scopeAligned, mlSr, scopeSr);
+                                awgMl   = resample(awgRaw, mlSr, awgSr);
+
+                                minLen = min(length(scopeMl), length(awgMl));
+                                scopeMl = scopeMl(1:minLen);
+                                awgMl = awgMl(1:minLen);
+                                scopeMl = obj.realScope2MlScope(ii,scopeMl,laserPower);
+                                targetMl = resample(targetWf{ii}.Sample, mlSr, awgSr);
+                                targetMl = targetMl(1:minLen);
+                                targetMl = obj.realScope2MlScope(ii,targetMl,laserPower);
+
+                                errorCurrent = targetMl - scopeMl;
+                                errorHistory{ii}(kk) = rms(errorCurrent(ignoredPoints+1:end - ignoredPoints)) ./...
+                                    (obj.realScope2MlScope(ii,offsetList{ii}(oo),laserPower)+1);
+                                awgMl = awgMl + P * errorCurrent;
+                                awgMl = lowpass(awgMl, lowPass, awgSr);
+                                awgMl = max(min(awgMl, obj.VoltageRange(2)), obj.VoltageRange(1));
+                                controlWf = InterpolatedWaveform(duration = obj.SineDuration,samplingRate=awgSr);
+                                controlWf.TimeData = tList;
+                                controlWf.SampleData = awgMl;
+                                controlWfl{ii} = WaveformList("1",waveformOrigin={controlWf},samplingRate=awgSr);
+
+
+                                % --- Visualization ---
+                                figure(3523+ii)
+                                subplot(2,1,1);
+                                plot(tList*1e6, obj.mlScope2realScope(ii,targetMl,laserPower), 'k--', 'LineWidth', 1.5); hold on;
+                                plot(tList*1e6, obj.mlScope2realScope(ii,scopeMl,laserPower), 'r', 'LineWidth', 1); hold off;
+                                title(sprintf('Iteration %d: Target vs Measured Output', kk));
+                                xlabel('Time (us)'); ylabel('Voltage (V)');
+                                legend('Target', 'Measured');
+
+                                subplot(2,1,2);
+                                plot(1:kk, errorHistory{ii}(1:kk), '-o', 'LineWidth', 1.5);
+                                title('RMS Error Convergence');
+                                xlabel('Iteration'); ylabel('Normalized RMS Error');
+                                grid on;
+
+                                drawnow;
+
+
+                            end
+                        end
+                        % Extract Fourier Coefficients for the MLP Dataset
+                        % Now that we have the perfect input waveform (u_current), extract
+                        % its fundamental and harmonic components using dot products.
+
+
+                        omega = 2 * pi * fList(ff);
+                        T = 1/fList(ff);
+                        tList = tList(ignoredPoints+1:end-ignoredPoints);
+                        tTotal = tList(end) - tList(1);
+                        nT = floor(tTotal/T);
+                        tIdx = tList <= (nT * T + tList(1));
+                        tList = tList(tIdx);
+                        for ii = 1:obj.NChannel
+                            abCoeffs = zeros(2*nHarmonics,1);
+                            u_current = controlWfl{ii}.Sample;
+                            u_current = u_current(ignoredPoints+1:end-ignoredPoints);
+                            u_current = u_current(tIdx);
+                            a0 = mean(u_current); % DC offset
+                            for n = 1:nHarmonics
+
+                                % Dot product with cosine (for 'a' coefficients)
+                                an = (2/length(tList)) * sum(u_current .* cos(n * omega * tList));
+                                % Dot product with sine (for 'b' coefficients)
+                                bn = (2/length(tList)) * sum(u_current .* sin(n * omega * tList));
+
+                                abCoeffs(2*n - 1) = an;
+                                abCoeffs(2*n) = bn;
+                            end
+                            obj.Dataset(ii).X{obj.RunIdx} = [fList(ff);ampList{ii}(aa);offsetList{ii}(oo)];
+                            obj.Dataset(ii).Y{obj.RunIdx} = [a0;abCoeffs];
+                            obj.Error{ii}(obj.RunIdx) = errorHistory{ii}(end);
+
+                            disp("KP" + ii +", f index " + ff + ", amp index " + aa + ", offset index " + oo)
+                            disp("error: "+errorHistory{ii}(end))
+                        end
+                        obj.RunIdx = obj.RunIdx + 1;
+                    end
+                end
+            end
+        end
+
+        function getAmpModChirpData(obj)
+            nOffset = obj.NOffset;
+            voltageRange = obj.VoltageRange;
+            awgSr = obj.SamplingRateAwg;
+            duration = obj.ChirpDuration;
+            offsetList = linspace(voltageRange(1) + 0.5, voltageRange(2) - 0.1,nOffset);
+            for jj = 1:nOffset
+                disp("Gathering initial amp-mod seed data run" +jj + "...");
+                pause(0.4)
+                amp = min(abs(offsetList(jj)-voltageRange)) * 2;
+                %% Generate a broad chirp to teach basic physics
+                wflAM = WaveformList("AM",samplingRate=awgSr,waveformOrigin={...
+                    SineWave(...
+                    amplitude=amp,...
+                    offset = amp/2,...
+                    frequency=5e3,...
+                    duration=duration)...
+                    });
+                wflFM = WaveformList("FM",samplingRate=awgSr,waveformOrigin={...
+                    LinearRamp(...
+                    startValue=obj.FrequencyRange(1),...
+                    stopValue=obj.FrequencyRange(2),...
+                    duration=duration,...
+                    rampTime=duration)...
+                    });
+
+                wf = SineWaveModulated( ...
+                    duration = duration, ...
+                    amplitude= 0, ...
+                    frequency=0.1, ...
+                    offset   = offsetList(jj), ...
+                    samplingRate = awgSr, ...
+                    amplitudeModulation=wflAM,...
+                    frequencyModulation=wflFM...
+                    );
+                wfl = WaveformList("chirp",waveformOrigin = {wf},samplingRate=awgSr);
+
+                %% Execute hardware functions
+                obj.sendAndRead({wfl,wfl});
+
+                %% Align time delay, downsample, and store
+                for ii = 1:obj.NChannel
+                    obj.processData(ii,[],false);
+                end
+                obj.RunIdx = obj.RunIdx + 1;
+            end
+        end
+
+        function pretrain(obj)
+            switch obj.Method
+                case "LSTM"
+                    %% LSTM
+                    if obj.IsIncludeAmpOffset
+                        numFeatures = 3;     % 1 Channel (Target Optical Amplitude)
+                    else
+                        numFeatures = 1;
+                    end
+                    numResponses = 1;    % 1 Channel (Required AWG Voltage)
+                    numHiddenUnits = 50; % Number of LSTM memory cells
+
+                    obj.NetworkLayers = [ ...
+                        sequenceInputLayer(numFeatures)
+                        lstmLayer(numHiddenUnits, 'OutputMode', 'sequence')
+                        fullyConnectedLayer(numResponses)
+                        tanhLayer
+                        regressionLayer];
+
+                    % Keep epochs low because we continuously re-train in the loop
+                    obj.NetworkOptions = trainingOptions('adam', ...
+                        'MaxEpochs', 25, ...
+                        'GradientThreshold', 1, ...
+                        'InitialLearnRate', 0.005, ...
+                        'Verbose', 0, ...
+                        'Plots', 'training-progress',...
+                        'ExecutionEnvironment','cpu',...
+                        'MiniBatchSize',12);
+                    if ~obj.IsCpu
+                        obj.NetworkOptions.ExecutionEnvironment = 'gpu';
+                    end
+                case "NARX"
+                    %% NARX
+                    delaySecond = 2e-6; % Look at the last xxxus of the AWG commands and Scope
+                    hiddenUnits = 15;      % NARX is highly efficient; 15-20 units is usually plenty
+                    delay = 1:round(delaySecond * obj.SamplingRateMl);
+                    for ii = 1:obj.NChannel
+                        obj.Network{ii} = narxnet(delay, delay, hiddenUnits, 'open', 'trainbr');
+                        obj.Network{ii}.trainParam.showWindow = true; % Keep true to watch the rapid convergence
+                        obj.Network{ii}.trainParam.epochs = 50;       % trainlm converges much faster than Adam
+                        obj.Network{ii}.trainParam.min_grad = 1e-7;   % Prevent early stopping
+                    end
+                case "MLP"
+                    %% MLP
+                    hiddenLayerSizes = [16 8];
+                    for ii = 1:obj.NChannel
+                        obj.Network{ii} = fitnet(hiddenLayerSizes);
+
+                        % Optional: Setup division of data for training, validation, testing
+                        obj.Network{ii}.divideParam.trainRatio = 70/100;
+                        obj.Network{ii}.divideParam.valRatio = 15/100;
+                        obj.Network{ii}.divideParam.testRatio = 15/100;
+                    end
+            end
+
+            disp('Training initial baseline model...');
+            obj.updateNetwork
+        end
+
+        function train(obj)
+            disp('Starting closed-loop optimization with periodicity constraints...');
+            maxAmp = obj.AmplitudeMaximum;
+            beta = obj.Beta;
+            awgSr = obj.SamplingRateAwg;
+            duration = obj.SineDuration;
+            obj.ConsecutiveGood = 0;
+            obj.setScopeSine
+
+            for iter = obj.IterationIdx:obj.NIteration
+                fprintf('\n--- Iteration %d / %d ---\n', iter, obj.NIteration);
+
+                for b = 1:obj.NBatch
+                    wfl = cell(1,2);
+                    targetWf = {};
+                    laserPower = obj.measureLaserPower;
+                    for ii = 1:obj.NChannel
+                        %% Generate a random target optical sine wave
+                        targetFreq = randi(obj.FrequencyRange); % 100 kHz to 1.5 MHz
+                        targetOffset = max(rand() * maxAmp(ii) / 2, maxAmp(ii)/30) + obj.Offset(ii);    % Ensure signal stays positive
+                        targetAmp = min(0.01 + (maxAmp(ii) * rand()),targetOffset * 2) * beta;   % Scale to your expected PD voltage
+
+                        targetWf{ii} = SineWave(...
+                            frequency=targetFreq,...
+                            amplitude=targetAmp,...
+                            offset=targetOffset,...
+                            samplingRate=awgSr,...
+                            duration=duration,...
+                            phase = 3 * pi / 2 ...
+                            );
+                        awgWf = obj.predictAwg(ii,targetWf{ii},laserPower);
+                        wfl{ii} = WaveformList("1",waveformOrigin={awgWf},samplingRate=awgSr);
+
+                        % % c. PHYSICS CONSTRAINT 2: Enforce Strict Periodicity
+                        % samples_per_period = round(scopeSr / targetFreq1);
+                        %
+                        % % Extract one period from the steady-state portion (skip first 20%)
+                        % steady_start = max(1, round(0.2 * length(predictedAwg)));
+                        % one_period = predictedAwg(steady_start : (steady_start + samples_per_period - 1));
+                        %
+                        % % Tile (repeat) it to fill the expected duration
+                        % num_repeats = ceil(length(ideal_scope_target) / samples_per_period);
+                        % periodic_awg_ml = repmat(one_period, 1, num_repeats);
+                        % periodic_awg_ml = periodic_awg_ml(1:length(ideal_scope_target));
+
+                        % d. Upsample and Execute on Hardware
+                        % predicted_awg_hw = resample(periodic_awg_ml, awgSr, scopeSr);
+                    end
+
+                    %% Send waveform and process
+                    pause(1)
+                    obj.sendAndRead(wfl)
+                    for ii = 1:obj.NChannel
+                        obj.processData(ii,targetWf,false);
+                    end
+                    obj.RunIdx = obj.RunIdx + 1;
+                end
+                obj.IterationIdx = obj.IterationIdx + 1;
+                %% Convergence Check
+                obj.computeError(iter)
+                obj.plotTrainingProgress
+                obj.plotLaserPower
+                for ii = 1:obj.NChannel
+                    fprintf("KP" + ii + ": average normalized RMSE for Batch %d: %.4f \n", iter, obj.BatchError(ii,iter));
+                end
+                if obj.IsNormalizeError
+                    th = obj.ErrorThreshold;
+                    th = [th;th];
+                else
+                    th = obj.ErrorThreshold .* obj.AmplitudeMaximum / 2;
+                    th = th.';
+                end
+                if all(obj.BatchError(:,iter) < th(1:obj.NChannel))
+                    obj.ConsecutiveGood = obj.ConsecutiveGood + 1;
+                    if obj.ConsecutiveGood >= 3
+                        disp('Network has converged to the error threshold! Stopping.');
+                        obj.saveNetwork
+                        break; % Exit loop
+                    end
+                else
+                    obj.ConsecutiveGood = 0; % Reset counter if error spikes
+                end
+
+                %% Re-train the network on the expanded, constrained dataset
+                disp('Updating network with new hardware reality...');
+                obj.updateNetwork
+            end
+        end
+
+        function kpTest(obj,V0,isDc)
+            arguments
+                obj
+                V0
+                isDc = false
+            end
+            obj.setScopeSine
+            nGrid = 10;
+            alphaList = linspace(2/obj.Beta,30,nGrid);
+            fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
+            errorList = zeros(nGrid,nGrid,obj.NChannel);
+            % laserPower = obj.measureLaserPower;
+            laserPower = 1;
+            for aa = 1:nGrid
+                for ii = 1:obj.NChannel
+                    calibName = "KP" + ii + "Depth2Pd";
+                    kdCalib = loadVar("LatticeCalib.mat",calibName);
+                    VMax = kdCalib(alphaList(aa) * V0 * 2);
+                    obj.Scope.VerticalRange(ii) = VMax * 1.1;
+                    obj.Scope.VerticalOffset(ii) = -VMax/2;
+                end
+                obj.Scope.set
+                pause(0.5)
+                for ff = 1:nGrid
+                    wfl = cell(1,2);
+                    targetWfl = cell(1,2);
+                    nCycle = floor(obj.SineDuration * fList(ff));
+                    for ii = 1:obj.NChannel
+                        [wfl{ii},targetWfl{ii}] = obj.predictKp(ii,V0,alphaList(aa),obj.Beta,fList(ff),nCycle,laserPower,isDc);
+                    end
+                    obj.sendAndRead(wfl)
+                    for ii = 1:obj.NChannel
+                        [scopeMl,targetMl] = obj.processData(ii,targetWfl{ii},false,false);
+                        measured = obj.mlScope2realScope(ii,scopeMl,laserPower);
+                        offset = mean(targetMl);
+                        errorList(ff,aa,ii) = obj.computeErrorRaw(measured,targetMl,offset);
+                        figure(34823+ii)
+                        plot(1:numel(measured),measured,1:numel(targetMl),targetMl)
+                        drawnow
+                    end
+                    pause(0.1)
+                end
+            end
+            for ii = 1:obj.NChannel
+                close(figure(4830+ii))
+                figure(4830+ii)
+                img = imagesc(errorList(:,:,ii),'XData',alphaList,'YData',fList / 1e6);
+                ax = gca;
+                ax.YDir = "normal";
+                xlabel("alpha")
+                ylabel("f [MHz]")
+                cb = colorbar;
+                cb.Label.String = "Error, KP"+ii;
+                title("Mean Error = " + mean(errorList(:,:,ii),"all"))
+            end
+        end
+
+        function [targetWfl] = getKpTarget(obj,chIdx,V0,alpha,beta,f,nCycle,phi)
+            calibName = "KP" + chIdx + "Depth2Pd";
+            kdCalib = loadVar("LatticeCalib.mat",calibName);
+            sr = obj.SamplingRateAwg;
+            duration = 1/f * nCycle;
+            if nargin == 7
+                phi = asin(-2/alpha/beta);
+            end
+            if chIdx == 1
+                depthWf = SineWave(...
+                    frequency = f,...
+                    amplitude= alpha * beta * V0,...
+                    offset = alpha / 2 * V0,...
+                    samplingRate = sr,...
+                    duration = duration,...
+                    phase = pi + phi ...
+                    );
+            else
+                depthWf = SineWave(...
+                    frequency = f,...
+                    amplitude= (1+alpha/2) * V0 * (alpha/(2+alpha)) * 2 * beta,...
+                    offset = (1+alpha/2) * V0,...
+                    samplingRate = sr,...
+                    duration = duration,...
+                    phase = phi ...
+                    );
+            end
+            targetWf = SineWave(...
+                frequency = f,...
+                amplitude = range(kdCalib(depthWf.Sample)),...
+                offset = kdCalib(depthWf.Offset),...
+                samplingRate = sr,...
+                duration = duration,...
+                phase = phi ...
+                );
+            targetWfl = WaveformList("1",waveformOrigin={targetWf},samplingRate=sr);
+        end
+
+        function [controlWfl,targetWfl] = predictKp(obj,chIdx,V0,alpha,beta,f,nCycle,laserPower,isDc)
+            sr = obj.SamplingRateAwg;
+            duration = 1/f * nCycle;
+            targetWfl = obj.getKpTarget(chIdx,V0,alpha,beta,f,nCycle);
+            targetWf = targetWfl.WaveformOrigin{1};
+            tList = targetWf.StartTime : targetWf.TimeStep : targetWf.EndTime;
+            if isDc
+                rampCalib = loadVar("LatticeCalib.mat","KP" + chIdx + "Pd2Keysight");
+                controlWfSampe = slmeval(targetWf.Sample,rampCalib);
+                controlWf = InterpolatedWaveform(duration = duration,samplingRate=sr);
+                controlWf.SampleData = controlWfSampe;
+                controlWf.TimeData = tList;
+            elseif obj.Method == "ILC"
+                paraList = cell2mat(obj.Dataset(chIdx).X);
+                runIdx = find(paraList(1,:) == V0 ...
+                    & paraList(2,:) == f ...
+                    & paraList(3,:) == alpha ...
+                    & paraList(4,:) == beta);
+                if isempty(runIdx)
+                    error("can not find matching KP record")
+                end
+                sample = obj.Dataset(ii).Y{runIdx};
+                sample = resample(sample,sr * 10, sr);
+                T = 1/f;
+                samples_per_period = floor(T * sr * 10);
+                num_periods = floor(length(sample) / samples_per_period);
+                truncated_signal = signal(samples_per_period + 1 : (num_periods-1) * samples_per_period);
+                period_matrix = reshape(truncated_signal, samples_per_period, num_periods-2);
+                averaged_period = mean(period_matrix, 2);
+                shift = round(targetWf.Phase / 2 / pi * samples_per_period);
+                averaged_period = circshift(averaged_period,-shift);
+                sample = resample(repmat(averaged_period, nCycle, 1),sr,sr * 10);
+                tList = targetWf.StartTime : targetWf.TimeStep : targetWf.EndTime * 2;
+                tList = tList(1:numel(sample));
+                controlWf = InterpolatedWaveform(duration = range(tList),samplingRate=sr);
+                controlWf.SampleData = sample;
+                controlWf.TimeData = tList;
+            else
+                controlWf = obj.predictAwg(chIdx,targetWf,laserPower);
+            end
+            controlWfl = WaveformList("1",waveformOrigin={controlWf},samplingRate=sr);
+        end
+
+        function controlWfl = predictAwg(obj,chIdx,targetWf,laserPower)
+            tList = targetWf.StartTime : targetWf.TimeStep : targetWf.EndTime;
+            ns = numel(targetWf.Sample);
+            switch obj.Method
+                case "LSTM"
+                    if obj.IsIncludeAmpOffset
+                        predictedAwg = obj.mlWf2realWf(predict(obj.Network{chIdx},...
+                            [obj.realScope2MlScope(chIdx,targetWf.Sample,laserPower);...
+                            ones(1,ns)*targetWf.Amplitude/2 ./ obj.AmplitudeMaximum(chIdx) * 2;...
+                            obj.realScope2MlScope(chIdx,ones(1,ns)*targetWf.Offset,laserPower)...
+                            ]));
+                    else
+                        predictedAwg = obj.mlWf2realWf(predict(obj.Network{chIdx},...
+                            [obj.realScope2MlScope(chIdx,targetWf.Sample,laserPower);...
+                            ]));
+                    end
+                case "NARX"
+                    ideal_target_mapped = obj.realScope2MlScope(chIdx,targetWf.Sample,laserPower);
+                    ideal_target_cell = con2seq(ideal_target_mapped);
+                    % 1. Find the maximum delay your network requires
+                    % MATLAB stores this automatically in the numInputDelays property
+                    net_open = obj.Network{chIdx};
+                    max_delay = net_open.numInputDelays;
+
+                    % 2. Extract EXACTLY that many points from the very end of your last DAgger iteration
+                    last_X = obj.Dataset(chIdx).X{end}(:, end-max_delay+1:end);
+                    last_Y = obj.Dataset(chIdx).Y{end}(:, end-max_delay+1:end);
+
+                    % 3. Convert these small history chunks to sequence format
+                    last_X_cell = con2seq(last_X);
+                    last_Y_cell = con2seq(last_Y);
+
+                    % 4. Trick preparets into perfectly formatting our initial states (Xi, Ai)
+                    % Because last_X_cell is exactly 'max_delay' long, preparets consumes it entirely
+                    % to build the initial delay states, leaving no leftover timesteps.
+                    % 4. Prime the OPEN-LOOP states
+                    [~, Xi_open, Ai_open] = preparets(net_open, last_X_cell, {}, last_Y_cell);
+
+                    % 5. Close the loop AND translate the states!
+                    % This converts the 2-input open-loop states into 1-input closed-loop states
+                    [net_closed, Xi_closed, Ai_closed] = closeloop(net_open, Xi_open, Ai_open);
+
+                    % 6. Predict!
+                    % Now we feed the closed-loop states into the closed-loop network
+                    predicted_awg_cell = net_closed(ideal_target_cell, Xi_closed, Ai_closed);
+                    predictedAwg = obj.mlWf2realWf(cell2mat(predicted_awg_cell));
+                case "MLP"
+                    % Define a new desired sine wave target
+                    target_Amp = targetWf.Amplitude;       % Volts
+                    target_Offset = targetWf.Offset;    % Volts
+                    target_Freq = targetWf.Frequency;    % MHz
+                    target_Phase = targetWf.Phase;
+
+                    X_new = [target_Freq; target_Amp; target_Offset];
+
+                    % Predict the Fourier coefficients
+                    Y_pred = obj.Network{chIdx}(X_new);
+                    % Extract coefficients
+                    a0 = Y_pred(1);
+                    ab_coeffs = Y_pred(2:end); % [a1; b1; a2; b2; ...]
+
+                    % Setup time vector for exactly one period of the target frequency
+                    omega = 2 * pi * target_Freq;
+
+                    % Reconstruct the signal
+                    predictedAwg = a0 * ones(size(tList)); % Start with DC component
+
+                    for k = 1:numel(ab_coeffs)/2
+                        idx_a = 2*k - 1;
+                        idx_b = 2*k;
+
+                        ak = ab_coeffs(idx_a);
+                        bk = ab_coeffs(idx_b);
+
+                        % Add the k-th harmonic
+                        predictedAwg = predictedAwg +...
+                            ak * cos(k * omega * tList + k * (target_Phase - 3 * pi / 2)) +...
+                            bk * sin(k * omega * tList + k * (target_Phase - 3 * pi / 2));
+                    end
+            end
+            awgSr = obj.SamplingRateAwg;
+            controlWfl = InterpolatedWaveform(duration = targetWf.Duration,samplingRate=awgSr);
+            controlWfl.TimeData = tList;
+            controlWfl.SampleData = predictedAwg;
+        end
+
+        function updateNetwork(obj)
+            tic
+            for ii = 1:obj.NChannel
+                switch obj.Method
+                    case "LSTM"
+                        obj.Network{ii} = trainNetwork(obj.Dataset(ii).X, obj.Dataset(ii).Y,...
+                            obj.NetworkLayers, obj.NetworkOptions);
+                        delete(findall(0, 'Type', 'figure', 'Tag', 'NNET_CNN_TRAININGPLOT_UIFIGURE'));
+                    case "NARX"
+                        num_batches = length(obj.Dataset(ii).X);
+                        num_timesteps = size(obj.Dataset(ii).X{1}, 2);  % e.g., 20000
+                        num_features_X = size(obj.Dataset(ii).X{1}, 1); % e.g., 3 (Scope Trace, Amp, Offset)
+                        num_features_Y = size(obj.Dataset(ii).Y{1}, 1); % e.g., 1 (AWG command)
+
+                        % 2. Preallocate the cell arrays for speed
+                        X_cell = cell(1, num_timesteps);
+                        Y_cell = cell(1, num_timesteps);
+
+                        % 3. Pack the data into concurrent batches!
+                        % We slice across all iterations at each specific timestep
+                        for t = 1:num_timesteps
+                            % Preallocate the matrices for this specific timestep
+                            x_step = zeros(num_features_X, num_batches);
+                            y_step = zeros(num_features_Y, num_batches);
+
+                            % Gather that exact timestep from every DAgger iteration
+                            for b = 1:num_batches
+                                x_step(:, b) = obj.Dataset(ii).X{b}(:, t);
+                                y_step(:, b) = obj.Dataset(ii).Y{b}(:, t);
+                            end
+
+                            % Store the batch matrix in the cell array
+                            X_cell{1, t} = x_step;
+                            Y_cell{1, t} = y_step;
+                        end
+                        % combined_inputs = [X_cell; Y_cell];
+                        [Xs, Xi, Ai, Ys] = preparets(obj.Network{ii}, X_cell, {}, Y_cell);
+
+                        % Train the network using actual measured scope and actual applied AWG data
+                        obj.Network{ii} = train(obj.Network{ii}, Xs, Ys, Xi, Ai);
+                    case "MLP"
+                        [obj.Network{ii}, ~] = train(obj.Network{ii}, cell2mat(obj.Dataset(ii).X), cell2mat(obj.Dataset(ii).Y));
+                end
+            end
+            toc
+        end
+
+        function saveNetwork(obj)
+            net = obj.Network;
+            disp('Saving the  model...');
+            save('PredistortionModel.mat', net);
+            disp('Done! You can now use this model for instant, periodic waveform generation.');
+        end
+
+        function saveObj(obj)
+            kpp = obj;
+            save("KppData.mat","kpp")
+        end
+
+        function sendAndRead(obj,wfl)
+            obj.MainAwg.WaveformList = wfl;
+            obj.MainAwg.set
+            obj.MainAwg.upload
+            obj.PulseAwg.trigger
+            pause(0.3)
+            obj.Scope.read
+        end
+
+        function laserPower = measureLaserPower(obj)
+            % obj.Scope.set
+            pause(1)
+            obj.Scope.trigger
+            pause(0.1)
+            obj.Scope.read
+            laserPower = mean(obj.Scope.Sample(3,:));
+        end
+
+        function [scopeMl,targetMl,awgMl] =  processData(obj,chIdx,targetWf,isSaveDelay,isSaveData)
+            arguments
+                obj KpPredistortion
+                chIdx = 1
+                targetWf = []
+                isSaveDelay = false
+                isSaveData = true
+            end
+            ignoredPoints = obj.NIgnoredSample;
+            scopeSr = obj.SamplingRateScope;
+            awgSr = obj.SamplingRateAwg;
+            mlSr = obj.SamplingRateMl;
+            laserPower = 1;
+            % laserPower = mean(obj.Scope.Sample(3,:));
+            if isSaveData
+                obj.Dataset(chIdx).LaserPower(obj.RunIdx) = laserPower;
+            end
+            scopeRaw = obj.Scope.Sample(chIdx,:);
+            awgRaw = obj.MainAwg.WaveformList{chIdx}.Sample;
+            awgUp = resample(awgRaw, scopeSr, awgSr);
+
+            %% Compute delay
+            if  (obj.Method ~= "MLP" || obj.Method ~= "ILC")
+                if isSaveDelay
+                    obj.Delay(chIdx) = finddelay(awgUp, scopeRaw);
+                end
+
+                if obj.Delay(chIdx) > 0
+                    % Scope is delayed relative to AWG (Expected physical reality)
+                    scopeAligned = scopeRaw(obj.Delay(chIdx)+1:end);
+                else
+                    error("Delay is found to be negative. Check if you have a signal.")
+                end
+            else
+                delay = obj.DelayFunc{chIdx}(targetWf.WaveformOrigin{1}.Frequency);
+                scopeAligned = scopeRaw(delay+1:end);
+            end
+
+            %% Resample to match the machine learning sampling rate
+            scopeMl = resample(scopeAligned, mlSr, scopeSr);
+            awgMl   = resample(awgRaw, mlSr, awgSr);
+
+            %% Ensure they match exactly in length
+            minLen = min(length(scopeMl), length(awgMl));
+            scopeMl = scopeMl(ignoredPoints:minLen-ignoredPoints);
+            awgMl = awgMl(ignoredPoints:minLen-ignoredPoints);
+            scopeMl = reshape(scopeMl, 1, []);
+            awgMl = reshape(awgMl, 1, []);
+            awgMl = obj.realWf2MlWf(awgMl);
+            scopeMl = obj.realScope2MlScope(chIdx,scopeMl,laserPower);
+            if ~isempty(targetWf)
+                targetMl = resample(targetWf.Sample, mlSr, awgSr);
+                targetMl = targetMl(ignoredPoints:minLen-ignoredPoints);
+            else
+                targetMl = ones(1,numel(awgMl)) * obj.AmplitudeMaximum(chIdx)/2;
+            end
+
+            %% Save data
+            if isSaveData
+                obj.Dataset(chIdx).Y{obj.RunIdx} = awgMl;
+                obj.Dataset(chIdx).XTarget{obj.RunIdx} = targetMl;
+                if ~obj.IsIncludeAmpOffset
+                    obj.Dataset(chIdx).X{obj.RunIdx} = scopeMl;
+                else
+                    % compute offset and amplitude
+                    if isSaveDelay
+                        windowSize = 1e3;
+                    else
+                        windowSize = obj.WindowSize;
+                    end
+                    offset = movmean(scopeMl, windowSize);
+                    centeredScope = scopeMl - offset;
+                    [amp, ~] = envelope(centeredScope, windowSize, 'peak');
+                    obj.Dataset(chIdx).X{obj.RunIdx} = [scopeMl;amp;offset];
+                end
+            end
+        end
+
+        function computeError(obj,batchIdx)
+            for b = batchIdx
+                runIdx = ((2 + obj.NOffset) + (b-1) * obj.NBatch) : ((1 + obj.NOffset) + (b) * obj.NBatch);
+                for ii = 1:obj.NChannel
+                    be = zeros(1,obj.NBatch);
+                    for jj = 1:obj.NBatch
+                        measured =  obj.mlScope2realScope(ii,obj.Dataset(ii).X{runIdx(jj)}(1,:),obj.Dataset(ii).LaserPower(runIdx(jj)));
+                        target = obj.Dataset(ii).XTarget{runIdx(jj)}(1,:);
+                        offset = mean(target);
+                        be(jj) = obj.computeErrorRaw(measured,target,offset);
+                    end
+                    obj.BatchError(ii,b) = mean(be);
+                    obj.BatchErrorStd(ii,b) = std(be);
+                end
+            end
+        end
+
+        function er = computeErrorRaw(obj,measured,target,offset)
+            arguments
+                obj
+                measured
+                target
+                offset = 0.5
+            end
+            if obj.IsNormalizeError
+                er = rms(measured - target)/offset;
+            else
+                er = rms(measured - target);
+            end
+        end
+
+        function wfRescaled = realWf2MlWf(obj,wf)
+            voltageRange = obj.VoltageRange;
+            wfRescaled = 2 * (wf - voltageRange(1)) ./ (voltageRange(2) - voltageRange(1)) - 1;
+        end
+
+        function wfRescaled = mlWf2realWf(obj,wf)
+            voltageRange = obj.VoltageRange;
+            wfRescaled = ((wf + 1) * (voltageRange(2) - voltageRange(1)) / 2) + voltageRange(1);
+        end
+
+        function scopeRescaled = realScope2MlScope(obj,chIdx,scopeTrace,laserPower)
+            laserPower = 1;
+            voltageRange = [0,obj.AmplitudeMaximum(chIdx)./obj.PowerVoltageRange(1)];
+            scopeRescaled = 2 * (scopeTrace./laserPower - voltageRange(1)) ./ (voltageRange(2) - voltageRange(1)) - 1;
+        end
+
+        function scopeRescaled = mlScope2realScope(obj,chIdx,scopeTrace,laserPower)
+            laserPower = 1;
+            voltageRange = [0,obj.AmplitudeMaximum(chIdx)./obj.PowerVoltageRange(1)];
+            scopeRescaled = (((scopeTrace + 1) * (voltageRange(2) - voltageRange(1)) / 2) + voltageRange(1)) * laserPower;
+        end
+
+        function [targetWf,guessWfl] = guessFromDc(obj,f,amp,offset,rampCalib,phase)
+            targetWf = SineWave(...
+                frequency    = f,...
+                amplitude    = amp,...
+                offset       = offset,...
+                samplingRate = obj.SamplingRateAwg,...
+                duration     = obj.SineDuration,...
+                phase = phase ...
+                );
+            tList = targetWf.StartTime : targetWf.TimeStep : targetWf.EndTime;
+            guessWfSample = slmeval(targetWf.Sample,rampCalib);
+            guessWf = InterpolatedWaveform(duration = obj.SineDuration,samplingRate=obj.SamplingRateAwg);
+            guessWf.SampleData = guessWfSample;
+            guessWf.TimeData = tList;
+            guessWfl = WaveformList("guess",samplingRate=obj.SamplingRateAwg,waveformOrigin={guessWf});
+        end
+
+        function plot(obj,runIdx,timeRange)
+            arguments
+                obj
+                runIdx
+                timeRange = [0.5e-4,0.6e-4]
+            end
+            if runIdx > obj.RunIdx
+                error("runIdx too large")
+            end
+            sr = obj.SamplingRateMl;
+            fig = figure(243);
+            tiledlayout(2,2)
+            for ii = 1:obj.NChannel
+                ax = nexttile(ii);
+                scopeMl = obj.mlScope2realScope(ii,obj.Dataset(ii).X{runIdx}(1,:),obj.Dataset(ii).LaserPower(runIdx));
+                awgMl = obj.mlWf2realWf(obj.Dataset(ii).Y{runIdx}(1,:));
+                targetMl = obj.Dataset(ii).XTarget{runIdx}(1,:);
+                nSample = numel(scopeMl);
+                t = 0:(1/sr):(nSample/sr - 1/sr);
+                tIdx = t>=timeRange(1) & t<=timeRange(2);
+                t = t * 1e3;
+                plot(ax,t(tIdx),scopeMl(tIdx),t(tIdx),targetMl(tIdx))
+                xlabel("Time [ms]")
+                ylabel("Photodiode Voltage [V]")
+                legend("Measured","Target")
+                ax.Title.String = "KP" + ii;
+
+                ax = nexttile(2 + ii);
+                plot(ax,t(tIdx),awgMl(tIdx))
+                xlabel("Time [ms]")
+                ylabel("AWG Voltage [V]")
+
+            end
+        end
+
+        function plotTrainingProgress(obj)
+            iter = size(obj.BatchError,2);
+            iter = 1:iter;
+            close(figure(42423))
+            figure(42423)
+            hold on
+            for ii = 1:obj.NChannel
+                eb(ii) = errorbar(iter,obj.BatchError(ii,:),obj.BatchErrorStd(ii,:),'.');
+                legend(eb(ii),"KP"+ii)
+            end
+            hold off
+            xlabel("Iteration Number")
+            if obj.IsNormalizeError
+                ylabel("Normalized Batch RMS Error")
+            else
+                ylabel("Batch RMS Error [V]")
+            end
+            render
+            for ii = 1:obj.NChannel
+                eb(ii).LineStyle = '-';
+            end
+            box on
+            drawnow
+        end
+
+        function plotLaserPower(obj)
+            runs = numel(obj.Dataset(1).LaserPower);
+            runs = 1:runs;
+            close(figure(42523))
+            figure(42523)
+            l = plot(runs,obj.Dataset(1).LaserPower,'.');
+            xlabel("Run Index")
+            ylabel("Precilaser Power [a.u.]")
+            render
+            l.LineStyle = '-';
+            box on
+            drawnow
+        end
+
+        function setScopeSine(obj)
+            obj.Scope.Duration = 10^round(log10(obj.SineDuration));
+            obj.Scope.NSample = obj.SamplingRateScope * 10^round(log10(obj.SineDuration));
+            obj.Scope.set
+            obj.Scope.startFromEdge
+        end
+
+        function setScopeChirp(obj)
+            obj.Scope.Duration = 10^round(log10(obj.ChirpDuration));
+            obj.Scope.NSample = obj.SamplingRateScope * 10^round(log10(obj.ChirpDuration));
+            obj.Scope.set
+            obj.Scope.startFromEdge
+        end
+    end
+end
+

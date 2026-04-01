@@ -1,4 +1,4 @@
 function keysightVoltage = Pd2Keysight2(pdVoltage)
-    load ScopeLatticeCalib.mat
-    keysightVoltage = slmeval(pdVoltage,KP2);
+    load LatticeCalib.mat
+    keysightVoltage = slmeval(pdVoltage,KP2Pd2Keysight);
 end
