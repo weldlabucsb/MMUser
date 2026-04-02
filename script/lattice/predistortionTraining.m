@@ -45,7 +45,7 @@ close all
 kpp = KpPredistortion;
 kpp.Method = "ILC";
 kpp.IsIncludeAmpOffset = false;
-kpp.NChannel = 1;
+kpp.NChannel = 2;
 kpp.NSampleScope = 1e6; % Number of samples on the scope
 kpp.SamplingRateScope = 1e9;
 kpp.ChirpDuration = 0.8e-3;
@@ -60,11 +60,9 @@ kpp.measureOffset
 kpp.initializeDataset
 kpp.measureDelay
 
-V0List = 4:2:10;
-for V0 = (V0List)
-    kpp.getKpData(V0)
-end
-monitorScope
+V0 = 6;
+kpp.getKpData(V0)
+kpp.saveObj
 
 %% ILC data analysis
 para = cell2mat(kpp.Dataset(1).X.');
