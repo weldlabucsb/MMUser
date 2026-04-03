@@ -45,13 +45,14 @@ close all
 kpp = KpPredistortion;
 kpp.Method = "ILC";
 kpp.IsIncludeAmpOffset = false;
+kpp.IsGuessUsingOldData = false;
 kpp.NChannel = 2;
 kpp.NSampleScope = 1e6; % Number of samples on the scope
 kpp.SamplingRateScope = 1e9;
 kpp.ChirpDuration = 0.8e-3;
 kpp.SineDuration = 0.8e-4;
-kpp.SamplingRateAwg = 100e6;
-kpp.SamplingRateMl = 100e6;
+kpp.SamplingRateAwg = 20e6;
+kpp.SamplingRateMl = 20e6;
 kpp.IgnoredTime = 1e-6;
 
 
@@ -60,9 +61,8 @@ kpp.measureOffset
 kpp.initializeDataset
 kpp.measureDelay
 
-V0 = 6;
+V0 = 4:2:10;
 kpp.getKpData(V0)
-kpp.saveObj
 
 %% ILC data analysis
 para = cell2mat(kpp.Dataset(1).X.');
