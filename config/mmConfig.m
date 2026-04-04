@@ -100,4 +100,7 @@ SimIsAutoDelete = false;
 LatticeSeSim1D_DatabaseTableName = "lattice_schrodinger_equation_simulation_1d";
 LatticeSeSim1D_OutputVariableName = "WaveFunction";
 
+LatticeFourierSeSim1D_DatabaseTableName = "lattice_fourier_simulation_1d";
+LatticeFourierSeSim1D_OutputVariableName = "WaveFunction";
+
 

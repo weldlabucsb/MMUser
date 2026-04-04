@@ -11,7 +11,7 @@ laser = {laser};
 
 %% set optical lattice
 ol = OpticalLattice(atom,laser{1});
-ol.DepthSpec = 3 * ol.RecoilEnergy;
+ol.DepthSpec = 6 * ol.RecoilEnergy;
 ol.updateIntensity;
 kL = ol.Laser.AngularWavenumber;
 laser = {ol.Laser};
@@ -26,13 +26,15 @@ ic.QuasiMomentum = 0;
 ol.DepthSpec = temp;
 
 %% set modulation
+modTimeAll = 100e-6;
 nModCycle = 900;
 nGrid = 20;
 modFreqList = linspace(2,15,nGrid) * f0;
 modAmpList = linspace(2,30,nGrid);
 
 [modAmpList,modFreqList] = meshgrid(modAmpList,modFreqList);
-modTime = nModCycle * 1./modFreqList;
+% modTime = nModCycle * 1./modFreqList;
+modTime = round(modTimeAll.*modFreqList)./modFreqList;
 modPhaseList = asin(-2./modAmpList);
 nMod = numel(modAmpList);
 
@@ -93,7 +95,7 @@ cb = colorbar;
 cb.Label.String = "Overlap between initial and final states";
 
 %% Data analysis, time-averaged
-se = loadSim(74,"LatticeFourierSeSim1D","Test");
+se = loadSim(75,"LatticeFourierSeSim1D","Test");
 overlap = zeros(1,se.NRun);
 wfi = se.InitialCondition.WaveFunction;
 wfi = wfi./sqrt(sum(abs(wfi).^2));
@@ -123,13 +125,15 @@ for ii = 1:se.NRun
     u = fft(wff,101,2);
     u = u ./ sqrt(sum(abs(u).^2,2));
     u = sum(abs(u).^4,2);
+    nModCycle = round(se.SimRun(ii).TotalTime * modFreq);
     tList = 0:se.TimeStep * se.AveragePeriod:nModCycle/modFreq;
     ml = min(numel(u),numel(tList));
     tList = tList(1:ml);
     u = u(1:ml);
     u = u./u(1);
     ctinterp = @(x) interp1(tList.',u,x,"pchip",'extrap');
-    tSample = (nModCycle-100)/modFreq:1/modFreq:(nModCycle-1)/modFreq;
+    tSample = (nModCycle-5)/modFreq:1/modFreq:(nModCycle-1)/modFreq;
+    % overlap(ii) = mean(ctinterp(tSample));
     overlap(ii) = mean(ctinterp(tSample));
     disp(ii)
 end
