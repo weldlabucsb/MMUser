@@ -32,6 +32,8 @@ classdef KpPredistortion < handle
         IsUsingSpectrum = false % If we use spectrum AWG as the main AWG
         IsGuessUsingOldData = false % If we use old data to guess the starting point
         IsInverted = true % If we predict KP waveform using inverted condition
+        AlphaMaximum = 25;
+        NGrid = 10;
     end
 
     properties (SetAccess = protected)
@@ -113,6 +115,7 @@ classdef KpPredistortion < handle
             obj.MainAwg.WaveformList = {wfl,wfl};
             obj.MainAwg.SamplingRate = [obj.SamplingRateAwg,obj.SamplingRateAwg];
             obj.MainAwg.TriggerSource = ["External","External"];
+            obj.MainAwg.TriggerDelay = [138.55e-9,0];
             obj.MainAwg.IsOutput = [true,true];
             obj.MainAwg.OutputMode = ["Normal","Normal"];
             obj.MainAwg.OutputLoad = ["Infinity","Infinity"];
@@ -120,6 +123,7 @@ classdef KpPredistortion < handle
             obj.MainAwg.connect
             obj.MainAwg.set
             obj.MainAwg.upload
+            obj.PulseAwg.trigger
 
         end
 
@@ -184,14 +188,14 @@ classdef KpPredistortion < handle
             disp('Measuring frequency dependent delay...');
             nGrid = 20;
             fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
-            obj.setScopeSine
+            obj.setScopeChirp
             scopeSr = obj.SamplingRateScope;
             awgSr = obj.SamplingRateAwg;
             delay = [0;0];
             for ff = 1:nGrid
                 %% Generate a broad chirp to teach basic physics
                 wf = SineWave( ...
-                    duration = obj.SineDuration, ...
+                    duration = obj.ChirpDuration, ...
                     amplitude= 0.8, ...
                     offset   = 0, ...
                     frequency = fList(ff),...
@@ -204,27 +208,55 @@ classdef KpPredistortion < handle
 
                 %% Find delay
                 T = 1/fList(ff);
-                timeWindow = round(T * scopeSr * 5);
-                delayEst = round(obj.DelayTimeEstimated * scopeSr);
+                timeWindow = round(T * scopeSr * 70);
+                sPerPeriod = round(T * scopeSr);
+                startPoint = 3 * sPerPeriod + 1;
+                endPoint = startPoint - 1 + timeWindow;
                 for chIdx = 1:obj.NChannel
                     %% Resample data
+                    if ff == 1
+                        offset = round(obj.DelayTimeEstimated(chIdx) * scopeSr + sPerPeriod/10);
+                    else
+                        offset = round(delay(chIdx,ff-1) + sPerPeriod/10);
+                    end
                     scopeRaw = obj.Scope.Sample(chIdx,:);
                     awgRaw = obj.MainAwg.WaveformList{chIdx}.Sample;
                     awgUp = resample(awgRaw, scopeSr, awgSr);
-                    scopeRaw = scopeRaw(1:timeWindow + delayEst(chIdx));
-                    awgUp = awgUp(1:timeWindow);
+                    scopeRaw = scopeRaw(offset+startPoint:endPoint + offset);
+                    awgUp = awgUp(startPoint:endPoint);
+                    freq_resolution = scopeSr / numel(awgUp);
+                    target_bin = round(fList(ff) / freq_resolution) + 1;
 
                     %% Compute delay
                     awgUp = awgUp - min(awgUp);
                     awgUp = awgUp ./ max(awgUp);
                     scopeRaw = scopeRaw - min(scopeRaw);
                     scopeRaw = scopeRaw ./ max(scopeRaw);
-                    [x,y,d] = alignsignals(awgUp,scopeRaw);
-                    delay(chIdx,ff) = d;
+
+                    fft_sig1 = fft(awgUp);
+                    fft_sig2 = fft(scopeRaw);
+                    phase1 = angle(fft_sig1(target_bin));
+                    phase2 = angle(fft_sig2(target_bin));
+                    phase_diff = wrapToPi(phase1 - phase2);
+                    measured_delay_sec = phase_diff / (2 * pi * fList(ff));
+
+                    delay(chIdx,ff) = round(measured_delay_sec * scopeSr) + offset;
+
+                    nPlot = delay(chIdx,ff) + sPerPeriod * 3;
+                    x = obj.Scope.Sample(chIdx,:);
+                    x = x(1:nPlot);
+                    y = obj.MainAwg.WaveformList{chIdx}.Sample;
+                    y = resample(y, scopeSr, awgSr);
+                    y = [zeros(1,delay(chIdx,ff)),y];
+                    y = y(1:nPlot);
+                    x = x - min(x);
+                    x = x ./ max(x);
+                    y = y - min(y);
+                    y = y ./ max(y);
 
                     %% Visualization
                     figure(9475+chIdx)
-                    plot(1:numel(x),x,1:numel(y),y)
+                    plot(1:nPlot,x,1:nPlot,y)
                     xlabel("Sample Index")
                     ylabel("Normalized Sample")
                     legend("Control Voltage","Scope Measurement Shifted")
@@ -248,11 +280,11 @@ classdef KpPredistortion < handle
 
         function getKpData(obj,V0)
             disp('ILC: gathering control voltage data under KP constraints...')
-
+            tic;
             %% Set parameters
             obj.setScopeSine
-            nGrid = 10;
-            alphaList = linspace(2/obj.Beta,30,nGrid);
+            nGrid = obj.NGrid;
+            alphaList = linspace(2/obj.Beta,obj.AlphaMaximum,nGrid);
             fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
             laserPower = obj.measureLaserPower;
             rampCalib = cell(1,obj.NChannel);
@@ -264,9 +296,10 @@ classdef KpPredistortion < handle
 
             %% Training parameters
             nIter0 = 50;        % How many times to update the waveform
-            PRange = [0.3,0.6];        % The "Proportional" gain range
+            PRange = [0.6,0.6]/2;        % The "Proportional" gain range
             PFunc = @(f) (-tanh(2 * (f-100e3)/(1.2e6-100e3)) + 1) * range(PRange) + PRange(1);
-            lowPass = obj.FrequencyRange(2) * 5; % Low pass filter for the feedback
+            lowPass = 10e6; % Low pass filter for the feedback
+            eth0 = obj.ErrorThreshold;
 
             %% Main loop
             for vv = 1:numel(V0)
@@ -274,15 +307,18 @@ classdef KpPredistortion < handle
                     obj.setScopeRangeKp(V0(vv),alphaList(aa))
                     for ff = 1:nGrid
                         %% Update training parameters
-                        if alphaList(aa) <= 6
-                            nIter = nIter0 * 2;
+                        % if alphaList(aa) <= 6
+                        %     nIter = nIter0 * 2;
+                        % else
+                        %     nIter = nIter0;
+                        % end
+                        nIter = nIter0;
+                        P = PFunc(fList(ff)) * ones(1,obj.NChannel);
+                        if fList(ff) >= 1.8e6
+                            eth = eth0 * 1.6;
                         else
-                            nIter = nIter0;
+                            eth = eth0;
                         end
-                        if obj.IsGuessUsingOldData
-                            nIter = round(nIter/5);
-                        end
-                        P = PFunc(fList(ff));
 
                         %% Prepare target and initial control waveform guess
                         targetWf = cell(1,2);
@@ -302,13 +338,47 @@ classdef KpPredistortion < handle
                                 0);
                             targetWf{chIdx} = targetWfl.WaveformOrigin{1};
                         end
+                        if obj.IsGuessUsingOldData && any(~isExact)
+                            for chIdx = 1:obj.NChannel
+                                [controlWfl{chIdx},targetWfl,~] = obj.predictKp(...
+                                    chIdx,...
+                                    V0(vv),...
+                                    fList(ff),...
+                                    alphaList(aa),...
+                                    obj.Beta,...
+                                    nCycle,...
+                                    laserPower(chIdx),...
+                                    true,...
+                                    0);
+                                targetWf{chIdx} = targetWfl.WaveformOrigin{1};
+                            end
+                        end
+                        % if obj.IsGuessUsingOldData && all(isExact)
+                        %     nIter = round(nIter/5);
+                        % end
 
                         %% Perform training
                         errorHistory = cell(1,obj.NChannel);
+                        isConverged = zeros(1,obj.NChannel);
                         for kk = 1:nIter
+                            if all(isConverged)
+                                break
+                            end
                             obj.sendAndRead(controlWfl)
-                            controlWfl = cell(1,2);
-                            for chIdx = 1:obj.NChannel                        
+                            % controlWfl = cell(1,2);
+                            for chIdx = 1:obj.NChannel 
+                                %% Stop if converged
+                                if isConverged(chIdx)
+                                    continue
+                                end
+
+                                %% Update P gain
+                                if kk > 3 ...
+                                        && errorHistory{chIdx}(kk-1) - errorHistory{chIdx}(kk-2) > 0 ...
+                                        && errorHistory{chIdx}(kk-2) - errorHistory{chIdx}(kk-3) > 0
+                                    P(chIdx) = P(chIdx) * 0.8;
+                                end
+
                                 %% Update control voltage from error signal
                                 tList = targetWf{chIdx}.StartTime : targetWf{chIdx}.TimeStep : targetWf{chIdx}.EndTime;
                                 [controlMl,targetMl,scopeMl] = obj.processData(chIdx,targetWf{chIdx},laserPower(chIdx),false,false,false);
@@ -317,7 +387,7 @@ classdef KpPredistortion < handle
                                     scopeMl(ignoredPoints+1:end - ignoredPoints),...
                                     targetMl(ignoredPoints+1:end - ignoredPoints),...
                                     obj.realScope2MlScope(chIdx,targetWf{chIdx}.Offset,laserPower(chIdx))+1);
-                                controlMl = controlMl + P * (targetMl - scopeMl);
+                                controlMl = controlMl + P(chIdx) * (targetMl - scopeMl);
                                 controlMl = lowpass(controlMl, lowPass, awgSr);
                                 controlMl = max(min(controlMl, obj.VoltageRange(2)), obj.VoltageRange(1));
                                 controlWf = InterpolatedWaveform(duration = targetWf{chIdx}.Duration,samplingRate=awgSr);
@@ -341,6 +411,17 @@ classdef KpPredistortion < handle
                                 grid on;
 
                                 drawnow;
+
+                                %% Check if this channel is converged
+                                if errorHistory{chIdx}(kk) < eth0
+                                    isConverged(chIdx) = 1;
+                                end
+                                if kk >= 10
+                                    histError = errorHistory{chIdx}(end-9:end);
+                                    if std(histError) / mean(histError) < 0.1 || std(histError) < eth0/3
+                                        isConverged(chIdx) = 1;
+                                    end
+                                end
                             end
                         end
                         %% Update dataset
@@ -364,11 +445,13 @@ classdef KpPredistortion < handle
                 end
             end
             obj.saveObj
+            obj.setHardware
+            toc
         end
 
         function getFourierData(obj)
             %% Generate target waveform parameters
-            nGrid = 5;
+            nGrid = obj.NGrid;
             ampMaxActual = obj.AmplitudeMaximum * 0.88;
             fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
             % fList = linspace(obj.FrequencyRange(2),obj.FrequencyRange(2),1);
@@ -714,15 +797,16 @@ classdef KpPredistortion < handle
                 V0
                 isDc = false
             end
+            tic;
             obj.setScopeSine
-            nGrid = 10;
-            alphaList = linspace(2/obj.Beta,30,nGrid);
+            nGrid = obj.NGrid;
+            alphaList = linspace(2/obj.Beta,obj.AlphaMaximum,nGrid);
             fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
             errorList = zeros(nGrid,nGrid,obj.NChannel);
             laserPower = obj.measureLaserPower;
             for aa = 1:nGrid
                 obj.setScopeRangeKp(V0,alphaList(aa))
-                for ff = nGrid:nGrid
+                for ff = 1:nGrid
                     controlWfl = cell(1,2);
                     targetWfl = cell(1,2);
                     nCycle = floor(obj.SineDuration * fList(ff));
@@ -750,13 +834,16 @@ classdef KpPredistortion < handle
                 figure(4830+chIdx)
                 img = imagesc(errorList(:,:,chIdx),'XData',alphaList,'YData',fList / 1e6);
                 ax = gca;
-                ax.YDir = "normal";
                 xlabel("alpha")
                 ylabel("f [MHz]")
                 cb = colorbar;
                 cb.Label.String = "Error, KP"+chIdx;
-                title("KP" + chIdx + ", Mean Error = " + mean(errorList(:,:,chIdx),"all"))
+                title("KP" + chIdx + ", V0 = " + V0 + ", beta = " + obj.Beta + ...
+                    " Mean Error = " + mean(errorList(:,:,chIdx),"all"))
+                clim([0,0.03])
             end
+            obj.setHardware
+            toc;
         end
 
         function targetWfl = getKpTarget(obj,chIdx,V0,f,alpha,beta,nCycle,phi)
@@ -806,7 +893,7 @@ classdef KpPredistortion < handle
             else
                 VRamp = (alpha/2 +1) * V0 * (1 + beta * alpha / (alpha + 2) * sin(phi));
             end
-            wfRamp = LinearRamp(...
+            wfRamp = TanhRamp(...
                 duration=rampTime,...
                 rampTime=rampTime,...
                 startValue=0,...
@@ -840,7 +927,8 @@ classdef KpPredistortion < handle
                 targetWf.Phase = phi;
             end
             if ~isreal(targetWf.Phase)
-                error("Wrong target phase.")
+                warning("Wrong target phase.")
+                targetWf.Phase = real(targetWf.Phase);
             end
             tList = targetWf.StartTime : targetWf.TimeStep : targetWf.EndTime;
             if isDc
@@ -850,7 +938,7 @@ classdef KpPredistortion < handle
                 controlWf.SampleData = controlWfSampe;
                 controlWf.TimeData = tList;
             elseif obj.Method == "ILC"
-                nRs = 10;
+                nRs = 1;
                 % tCut = obj.IgnoredTime;
                 [controlVoltage,isExact] = obj.findKpData(chIdx,V0,f,alpha,beta);
                 controlVoltage = resample(controlVoltage,sr * nRs, sr);
@@ -1071,14 +1159,17 @@ classdef KpPredistortion < handle
 
         function saveObj(obj)
             kpp = obj;
-            folderName = "C:\Users\WOODHOUSE\Documents\MMUser\script\lattice";
+            folderName = "B:\_Li\_LithiumData\HardwareLogs\KpPredistortionData";
             save(fullfile(folderName,"KppData_" + string(datetime,'yyyy_MM_dd_HH_mm_ss') + ".mat"),"kpp")
         end
 
         function sendAndRead(obj,wfl)
             obj.MainAwg.WaveformList = wfl;
             obj.MainAwg.set
-            obj.MainAwg.upload
+            if obj.IsUsingSpectrum
+                pause(0.1)
+                obj.MainAwg.upload
+            end
             obj.PulseAwg.trigger
             pause(0.3)
             obj.Scope.read
@@ -1222,6 +1313,7 @@ classdef KpPredistortion < handle
             v = [V0;f;alpha;beta];
             mu = mean(A, 2);
             sig = std(A, 0, 2);
+            sig(sig==0) = mu(sig == 0);
             A_norm = (A - mu) ./ sig;
             v_norm = (v - mu) ./ sig;
             [~, runIdx] = min(vecnorm(A_norm - v_norm));
@@ -1349,6 +1441,7 @@ classdef KpPredistortion < handle
             obj.Scope.Duration = 10^round(log10(obj.SineDuration));
             obj.Scope.NSample = obj.SamplingRateScope * 10^round(log10(obj.SineDuration));
             obj.Scope.set
+            % pause(0.3)
             obj.Scope.startFromEdge
         end
 
@@ -1357,6 +1450,7 @@ classdef KpPredistortion < handle
             obj.Scope.Duration = 10^round(log10(obj.ChirpDuration));
             obj.Scope.NSample = obj.SamplingRateScope * 10^round(log10(obj.ChirpDuration));
             obj.Scope.set
+            % pause(0.3)
             obj.Scope.startFromEdge
         end
     
@@ -1373,6 +1467,7 @@ classdef KpPredistortion < handle
                 obj.Scope.VerticalOffset(chIdx) = -VRange/2 ;
             end
             obj.Scope.set
+            obj.Scope.startFromEdge
             pause(0.5)
         end
     end
