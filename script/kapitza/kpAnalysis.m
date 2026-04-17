@@ -36,7 +36,7 @@ for ii = 1:nTrial
     becExp.ScannedVariableList(2,:), ...
     adData,"None");
     Omega = f/f0;
-    alpha = alpha0;
+    alpha = alpha0 * beta;
     ipr{ii} = computeIPR(adData);
     if isNormalize
         ipr{ii} = ipr{ii}./repmat(ipr0,numel(f),1);
