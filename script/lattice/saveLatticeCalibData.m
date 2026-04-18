@@ -2,7 +2,7 @@
 % trialNumberPd2Keysight = 8639; % 100% moglabs mod depth
 % trialNumberPd2Keysight = 8579; % 150% moglabs mod depth
 % trialNumberPd2Keysight = 8718; % 200% moglabs mod depth, keysight
-trialNumberPd2Keysight = 8883; % 200% moglabs mod depth, spectrum
+trialNumberPd2Keysight = 8936; % 200% moglabs mod depth, spectrum
 sName = "LatticeScope";
 becExp = loadBecExp(trialNumberPd2Keysight);
 s = loadVar(fullfile(becExp.HardwareLogPath,becExp.DataPrefix + "_" + num2str(1)) + "_" + sName + ".mat");
@@ -12,7 +12,7 @@ nSample = s.NSample;
 idx = s.TimeList >= (scopeDuration/2) & s.TimeList <= (scopeDuration/2 + rampTime);
 % V = linspace(-1,1,numel(find(idx))); % 100% moglabs mod depth
 % V = linspace(-0.65,1,numel(find(idx))); % 150% moglabs mod depth
-V = linspace(-0.5,0.6,numel(find(idx))); % 200% moglabs mod depth
+V = linspace(-0.5,0.55,numel(find(idx))); % 200% moglabs mod depth
 KP1Pd = s.Sample(1,idx);
 KP2Pd = s.Sample(2,idx);
 KP1Pd2Keysight = slmengine(KP1Pd,V, 'plot', 'on', 'increasing', 'on');
@@ -20,8 +20,8 @@ KP2Pd2Keysight = slmengine(KP2Pd,V, 'plot', 'on', 'increasing', 'on');
 
 
 %% Depth to Pd
-trialNumberKP1Kd = 8879;
-trialNumberKP2Kd = 8880;
+trialNumberKP1Kd = 8934;
+trialNumberKP2Kd = 8935;
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k = becExp.KapitzaDirac.DepthOverAmplitude;

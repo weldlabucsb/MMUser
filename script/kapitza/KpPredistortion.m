@@ -14,7 +14,7 @@ classdef KpPredistortion < handle
         VoltageRange = [-1,0.8] % Keysight output voltage range
         PowerVoltageRange = [1,1.3] % Precilaser power PD voltage range
         FrequencyRange = [100e3,1.2e6] % Frequency range of modulation
-        AmplitudeMaximum = [0.6, 1.1] % Maximum amplitude on the scope for KP1 and KP2
+        AmplitudeMaximum = [2.4, 4.7] % Maximum amplitude on the scope for KP1 and KP2
         ChirpDuration = 1e-3 % Duration of the chirp pulse
         SineDuration = 1e-3 % Duration of the sine pulse
         Beta = 0.8 % Reduction factor of AM modulation
@@ -81,8 +81,8 @@ classdef KpPredistortion < handle
             obj.Scope.IsEnabled = [true,true,false,false];
             obj.Scope.TriggerSource = "External";
             obj.Scope.TriggerLevel = 0.3;
-            obj.Scope.VerticalRange = [0.6,1.2,1.5,2];
-            obj.Scope.VerticalOffset= [-0.3+0.02,-0.6+0.02,-0.75 + .02,0];
+            obj.Scope.VerticalRange = [2.5,5,1.5,2];
+            obj.Scope.VerticalOffset= [-1.24,-2.4,-0.75 + .02,0];
             obj.Scope.NSample = 10^round(log10(obj.ChirpDuration)) * obj.SamplingRateScope;
             obj.Scope.connect
             obj.Scope.set
@@ -115,7 +115,7 @@ classdef KpPredistortion < handle
             obj.MainAwg.WaveformList = {wfl,wfl};
             obj.MainAwg.SamplingRate = [obj.SamplingRateAwg,obj.SamplingRateAwg];
             obj.MainAwg.TriggerSource = ["External","External"];
-            obj.MainAwg.TriggerDelay = [138.55e-9,0];
+            obj.MainAwg.TriggerDelay = [130.775e-9,0];
             obj.MainAwg.IsOutput = [true,true];
             obj.MainAwg.OutputMode = ["Normal","Normal"];
             obj.MainAwg.OutputLoad = ["Infinity","Infinity"];
@@ -124,6 +124,8 @@ classdef KpPredistortion < handle
             obj.MainAwg.set
             obj.MainAwg.upload
             obj.PulseAwg.trigger
+            obj.SamplingRateAwg = obj.MainAwg.SamplingRate(1);
+            obj.SamplingRateMl = obj.MainAwg.SamplingRate(1);
 
         end
 
@@ -941,7 +943,7 @@ classdef KpPredistortion < handle
                 nRs = 1;
                 % tCut = obj.IgnoredTime;
                 [controlVoltage,isExact] = obj.findKpData(chIdx,V0,f,alpha,beta);
-                controlVoltage = resample(controlVoltage,sr * nRs, sr);
+                % controlVoltage = resample(controlVoltage,sr * nRs, sr);
                 sr = sr * nRs;
                 T = 1/f;
                 % nIgnoredCycle = ceil(tCut/T);
@@ -972,7 +974,7 @@ classdef KpPredistortion < handle
                 
 
                 % Define how many harmonics to extract (up to Nyquist)
-                max_k = floor((sr/2) / f);
+                max_k = floor((sr/2) / f / 10); % Divided the number of orders by ten to save time
                 ck = zeros(max_k + 1, 1); % Store complex coefficients
 
                 for k = 0:max_k
@@ -988,7 +990,6 @@ classdef KpPredistortion < handle
                 new_duration = (nCycle+2 * nIgnoredCycle) / f;
                 t_new = (0:1/sr:new_duration-1/sr)';
                 reconstructed = zeros(size(t_new));
-
                 % Sum the harmonics (Synthesis)
                 % We skip k=0 (DC) in the loop and add it separately
                 tShift = mod(targetWf.Phase,2*pi) / 2 / pi * T;

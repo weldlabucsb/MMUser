@@ -52,21 +52,22 @@ kpp.NSampleScope = 1e6; % Number of samples on the scope
 kpp.SamplingRateScope = 1e9;
 kpp.ChirpDuration = 0.8e-3;
 kpp.SineDuration = 0.8e-4;
-kpp.SamplingRateAwg = 100e6;
-kpp.SamplingRateMl = 100e6;
+kpp.SamplingRateAwg = 200e6;
+kpp.SamplingRateMl = 200e6;
 kpp.IgnoredTime = 1e-6;
 kpp.FrequencyRange = [100e3,1.8e6];
-kpp.AlphaMaximum = 45;
-kpp.Beta = 0.6;
+kpp.AlphaMaximum = 60;
+kpp.Beta = 0.5;
 kpp.DelayTimeEstimated = [4.115,4.115] * 1e-6;
 kpp.ErrorThreshold = 5e-3;
+kpp.NGrid = 10;
 
 kpp.setHardware
 kpp.measureOffset
 kpp.initializeDataset
 kpp.measureDelay
 
-V0 = 6;
+V0 = 6:2:10;
 kpp.getKpData(V0)
 
 %% ILC data analysis
