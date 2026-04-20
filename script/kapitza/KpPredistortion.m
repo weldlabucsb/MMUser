@@ -14,7 +14,7 @@ classdef KpPredistortion < handle
         VoltageRange = [-1,0.8] % Keysight output voltage range
         PowerVoltageRange = [1,1.3] % Precilaser power PD voltage range
         FrequencyRange = [100e3,1.2e6] % Frequency range of modulation
-        AmplitudeMaximum = [2.4, 4.7] % Maximum amplitude on the scope for KP1 and KP2
+        AmplitudeMaximum = [2.4, 4.7] / 2 % Maximum amplitude on the scope for KP1 and KP2
         ChirpDuration = 1e-3 % Duration of the chirp pulse
         SineDuration = 1e-3 % Duration of the sine pulse
         Beta = 0.8 % Reduction factor of AM modulation
@@ -34,6 +34,7 @@ classdef KpPredistortion < handle
         IsInverted = true % If we predict KP waveform using inverted condition
         AlphaMaximum = 25;
         NGrid = 10;
+        BandwidthPd = [10,11]*1e6
     end
 
     properties (SetAccess = protected)
@@ -127,6 +128,11 @@ classdef KpPredistortion < handle
             obj.SamplingRateAwg = obj.MainAwg.SamplingRate(1);
             obj.SamplingRateMl = obj.MainAwg.SamplingRate(1);
 
+        end
+
+        function rollOff = PdRollOff(obj,chIdx,f)
+            fc = obj.BandwidthPd(chIdx);
+            rollOff = 1 / sqrt(1+(f/fc)^2);
         end
 
         function initializeDataset(obj)
@@ -854,6 +860,7 @@ classdef KpPredistortion < handle
             kdCalib = loadVar("LatticeCalib.mat",calibName);
             sr = obj.SamplingRateAwg;
             duration = 1/f * nCycle;
+            rollOff = obj.PdRollOff(chIdx,f);
             if nargin == 7
                 phi = asin(-2/alpha/beta);
             end
@@ -878,7 +885,7 @@ classdef KpPredistortion < handle
             end
             targetWf = SineWave(...
                 frequency    = f,...
-                amplitude    = range(kdCalib(depthWf.Sample)),...
+                amplitude    = range(kdCalib(depthWf.Sample)) * rollOff,...
                 offset       = kdCalib(depthWf.Offset),...
                 samplingRate = sr,...
                 duration     = duration,...
@@ -974,7 +981,8 @@ classdef KpPredistortion < handle
                 
 
                 % Define how many harmonics to extract (up to Nyquist)
-                max_k = floor((sr/2) / f / 10); % Divided the number of orders by ten to save time
+                % max_k = floor((sr/2) / f); % Divided the number of orders by ten to save time
+                max_k = 40;
                 ck = zeros(max_k + 1, 1); % Store complex coefficients
 
                 for k = 0:max_k
@@ -987,6 +995,7 @@ classdef KpPredistortion < handle
                 end
 
                 %% 3. Reconstruction for New Duration
+                % tic;
                 new_duration = (nCycle+2 * nIgnoredCycle) / f;
                 t_new = (0:1/sr:new_duration-1/sr)';
                 reconstructed = zeros(size(t_new));
@@ -998,6 +1007,7 @@ classdef KpPredistortion < handle
                     reconstructed = reconstructed + ...
                         2 * real(ck(k+1) * exp(1j * 2 * pi * k * f * (t_new + tShift)));
                 end
+                % toc;
 
                 % Add the DC offset (k=0)
                 controlVoltage = reconstructed + real(ck(1));

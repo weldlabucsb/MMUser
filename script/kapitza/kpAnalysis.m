@@ -1,7 +1,9 @@
 %% Load Trial and get parameters
-trialNumber = [8945,8946,8948];
+% trialNumber = [8945,8946,8948];
+trialNumber = [8991];
 nTrial = numel(trialNumber);
-refTrialNumber = 8949;
+% refTrialNumber = 8949;
+refTrialNumber = 8993;
 becExp = loadBecExp(refTrialNumber);
 beta = becExp.HardwareData.hw_KPModDepthBeta(1);
 V0 = becExp.HardwareData.hw_KPDepthEr(1);
@@ -67,7 +69,7 @@ title("$V_0 = "+V0 + "~E_{\mathrm{R}},~\mathrm{Mean}" + "$",'Interpreter','latex
 render
 
 %% Plot adMix
-becExp = loadBecExp(trialNumber(3));
+becExp = loadBecExp(trialNumber(1));
 load(fullfile(becExp.DataAnalysisPath,"AdData.mat"));
 adData = flip(adData,1);
 [xTick,yTick,adData] = computeAveErr2D(...
