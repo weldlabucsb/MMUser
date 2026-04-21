@@ -3,7 +3,7 @@
 trialNumber = [8991];
 nTrial = numel(trialNumber);
 % refTrialNumber = 8949;
-refTrialNumber = 8993;
+refTrialNumber = 9003;
 becExp = loadBecExp(refTrialNumber);
 beta = becExp.HardwareData.hw_KPModDepthBeta(1);
 V0 = becExp.HardwareData.hw_KPDepthEr(1);

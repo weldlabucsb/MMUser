@@ -2,8 +2,8 @@
 % trialNumberPd2Keysight = 8639; % 100% moglabs mod depth
 % trialNumberPd2Keysight = 8579; % 150% moglabs mod depth
 % trialNumberPd2Keysight = 8718; % 200% moglabs mod depth, keysight
-% trialNumberPd2Keysight = 8977; % 200% moglabs mod depth, spectrum
-trialNumberPd2Keysight = 9000; % 200% moglabs mod depth, spectrum
+trialNumberPd2Keysight = 8977; % 200% moglabs mod depth, spectrum
+% trialNumberPd2Keysight = 9000; % 200% moglabs mod depth, spectrum
 sName = "LatticeScope";
 becExp = loadBecExp(trialNumberPd2Keysight);
 s = loadVar(fullfile(becExp.HardwareLogPath,becExp.DataPrefix + "_" + num2str(1)) + "_" + sName + ".mat");
