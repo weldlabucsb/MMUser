@@ -1089,7 +1089,9 @@ classdef KpPredistortion < handle
         end
 
         function controlWfl = predictKp(obj,chIdx,V0,f,alpha,beta,nCycle,rampTime)
-            wflMod = obj.predictKpMod(chIdx,V0,f,alpha,beta,nCycle,1,false);
+            if nCycle > 0
+                wflMod = obj.predictKpMod(chIdx,V0,f,alpha,beta,nCycle,1,false);
+            end
             % phi = asin(-2/alpha/beta);
             % if chIdx == 1
             %     VRamp = alpha/2 * V0 * (1 + beta * sin(phi + pi));
@@ -1107,14 +1109,18 @@ classdef KpPredistortion < handle
             % wfRamp2.SampleData = rampSample;
             % wfRamp2.TimeData = wfRamp.StartTime:wfRamp.TimeStep:wfRamp.EndTime;
             wfRamp = obj.predictKpRamp(chIdx,V0,alpha,beta,1,false);
-            rampSample = wfRamp.Sample;
-            endControlVal = rampSample(end);
-            tTriansient = obj.IgnoredTime * 2;
-            nS = tTriansient * obj.SamplingRateAwg;
-            sIdx = 1:nS;
-            wfMod = wflMod.WaveformOrigin{1};
-            wfMod.SampleData(sIdx) = endControlVal * flip(sIdx-1)/(nS-1) + wfMod.SampleData(sIdx).' .* (sIdx-1)/(nS-1);
-            controlWfl = WaveformList("c",waveformOrigin={wfRamp.WaveformOrigin{1},wflMod.WaveformOrigin{1}},samplingRate = obj.SamplingRateAwg);
+            if nCycle > 0
+                rampSample = wfRamp.Sample;
+                endControlVal = rampSample(end);
+                tTriansient = obj.IgnoredTime * 2;
+                nS = tTriansient * obj.SamplingRateAwg;
+                sIdx = 1:nS;
+                wfMod = wflMod.WaveformOrigin{1};
+                wfMod.SampleData(sIdx) = endControlVal * flip(sIdx-1)/(nS-1) + wfMod.SampleData(sIdx).' .* (sIdx-1)/(nS-1);
+                controlWfl = WaveformList("c",waveformOrigin={wfRamp.WaveformOrigin{1},wflMod.WaveformOrigin{1}},samplingRate = obj.SamplingRateAwg);
+            else
+                controlWfl = wfRamp;
+            end
         end
 
         function [controlWfl,targetWfl,isExact] = predictKpMod(obj,chIdx,V0,f,alpha,beta,nCycle,laserPower,isDc,phi)
