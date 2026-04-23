@@ -1149,21 +1149,7 @@ classdef KpPredistortion < handle
                 % controlVoltage = resample(controlVoltage,sr * nRs, sr);
                 sr = sr * nRs;
                 T = 1/f;
-                % nIgnoredCycle = ceil(tCut/T);
                 nIgnoredCycle = 1;
-                % samples_per_period = floor(T * sr * nRs);
-                % num_periods = floor(length(controlVoltage) / samples_per_period);
-                % truncated_signal = controlVoltage(samples_per_period + 1 : (num_periods-1) * samples_per_period);
-                % period_matrix = reshape(truncated_signal, samples_per_period, num_periods-2);
-                % averaged_period = mean(period_matrix, 2);
-                % shift = round(targetWf.Phase / 2 / pi * samples_per_period);
-                % averaged_period = circshift(averaged_period,-shift);
-                % controlVoltage = repmat(averaged_period, nCycle+2, 1);
-                % controlVoltage = resample(controlVoltage,sr,sr * nRs);
-                % controlVoltage = controlVoltage(round(samples_per_period / nRs) + 1: end - round(samples_per_period/nRs));
-                %
-                % 2. Manual Harmonic Extraction (The "Integral" approach)
-                % Ensure we analyze an integer number of periods for rigor
                 num_periods = floor(length(controlVoltage) / (T * sr));
                 L_analysis = round(num_periods * T * sr);
                 x_trunc = controlVoltage(1:L_analysis);
@@ -1175,7 +1161,6 @@ classdef KpPredistortion < handle
                 t_trunc = t_trunc(sPerCycle * nIgnoredCycle + 1:end-sPerCycle * nIgnoredCycle);
                 L_analysis = numel(x_trunc);
                 
-
                 % Define how many harmonics to extract (up to Nyquist)
                 % max_k = floor((sr/2) / f); % Divided the number of orders by ten to save time
                 max_k = 40;
@@ -1198,11 +1183,16 @@ classdef KpPredistortion < handle
                 % Sum the harmonics (Synthesis)
                 % We skip k=0 (DC) in the loop and add it separately
                 tShift = mod(targetWf.Phase,2*pi) / 2 / pi * T;
+                t = t_new + tShift;
                 for k = 1:max_k
                     % We use 2 * real(ck * exp(jwt)) to account for negative frequencies
                     reconstructed = reconstructed + ...
-                        2 * real(ck(k+1) * exp(1j * 2 * pi * k * f * (t_new + tShift)));
+                        2 * real(ck(k+1) * exp(1j * 2 * pi * k * f * t));
                 end
+
+                % kList = (1:max_k).';
+                % TT = exp(1j * 2 * pi * kList * f * t.');
+                % reconstructed = 2 * real(ck(2:max_k+1).' * TT).';
                 % toc;
 
                 % Add the DC offset (k=0)
