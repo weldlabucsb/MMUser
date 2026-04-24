@@ -21,8 +21,8 @@ KP2Pd2Keysight = slmengine(KP2Pd,V, 'plot', 'on', 'increasing', 'on');
 
 
 %% Depth to Pd
-trialNumberKP1Kd = 9028;
-trialNumberKP2Kd = 9027;
+trialNumberKP1Kd = 9035;
+trialNumberKP2Kd = 9036;
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k = becExp.KapitzaDirac.DepthOverAmplitude;
