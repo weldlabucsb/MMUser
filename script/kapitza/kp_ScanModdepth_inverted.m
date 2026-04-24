@@ -100,6 +100,8 @@ overlap = zeros(1,se.NRun);
 wfi = se.InitialCondition.WaveFunction;
 wfi = wfi./sqrt(sum(abs(wfi).^2));
 sr = 1 / se.TimeStep / se.AveragePeriod;
+u0 = fft(se.InitialCondition.WaveFunction,101);
+u0 = u0 ./ sqrt(sum(abs(u0).^2));
 for ii = 1:se.NRun
     wff = se.SimRun(ii).readRun("WaveFunction");
     wff = wff ./ sqrt(sum(abs(wff).^2,2));
@@ -124,7 +126,8 @@ for ii = 1:se.NRun
 
     u = fft(wff,101,2);
     u = u ./ sqrt(sum(abs(u).^2,2));
-    u = sum(abs(u).^4,2);
+    % u = sum(abs(u).^4,2);
+    u = ((abs(u).^2) * (abs(u0).^2));
     nModCycle = round(se.SimRun(ii).TotalTime * modFreq);
     tList = 0:se.TimeStep * se.AveragePeriod:nModCycle/modFreq;
     ml = min(numel(u),numel(tList));
@@ -132,7 +135,7 @@ for ii = 1:se.NRun
     u = u(1:ml);
     u = u./u(1);
     ctinterp = @(x) interp1(tList.',u,x,"pchip",'extrap');
-    tSample = (nModCycle-5)/modFreq:1/modFreq:(nModCycle-1)/modFreq;
+    tSample = (nModCycle-20)/modFreq:1/modFreq:(nModCycle-1)/modFreq;
     % overlap(ii) = mean(ctinterp(tSample));
     overlap(ii) = mean(ctinterp(tSample));
     disp(ii)
