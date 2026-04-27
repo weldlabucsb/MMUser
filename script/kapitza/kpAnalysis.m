@@ -188,9 +188,3 @@ offset2Target = KP2Depth2Pd((alphaRun/2 + 1) * V0);
 
 disp((fd2.Coefficient(3) - fd1.Coefficient(3)-pi)/pi/2 / fRun * 1e9)
 
-%% Compute IPR
-function ipr = computeIPR(adData)
-onedData = squeeze(sum(adData,2));
-onedData = onedData./sum(onedData,1);
-ipr = squeeze(sum(onedData.^2,1));
-end
