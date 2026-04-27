@@ -1723,7 +1723,11 @@ classdef KpPredistortion < handle
 
         function setScopeRamp(obj)
             % obj.Scope.Duration = obj.RampTime;
-            obj.Scope.Duration = 500e-3;
+            if obj.RampTime >= 200e-3
+                obj.Scope.Duration = 500e-3;
+            else
+                obj.Scope.Duration = 20e-3;
+            end
             obj.Scope.NSample = 10e6;
             obj.Scope.set
             % pause(0.3)
