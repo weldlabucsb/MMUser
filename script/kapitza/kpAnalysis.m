@@ -1,9 +1,10 @@
 %% Load Trial and get parameters
 % trialNumber = [8945,8946,8948];
-trialNumber = [8991];
+% trialNumber = [9108,9109,9110]; % Inverted
+trialNumber = [9117]; % Non-inverted
 nTrial = numel(trialNumber);
 % refTrialNumber = 8949;
-refTrialNumber = 9003;
+refTrialNumber = 9107;
 becExp = loadBecExp(refTrialNumber);
 beta = becExp.HardwareData.hw_KPModDepthBeta(1);
 V0 = becExp.HardwareData.hw_KPDepthEr(1);
@@ -13,20 +14,27 @@ ol = OpticalLattice(atom,laser);
 ol.DepthSpec = V0 * ol.RecoilEnergy;
 f0 = ol.HarmonicFrequency;
 isNormalize = true;
+isInverted = becExp.HardwareData.hw_KPIsInverted;
 
 %% Compute reference IPR
 becExp = loadBecExp(refTrialNumber);
 load(fullfile(becExp.DataAnalysisPath,"AdData.mat"));
 adData = flip(adData,1);
-[alpha0,adData] = computeAveErr(...
-    becExp.ScannedVariableList(1,:), ...
-    adData,"Std");
 ipr0 = computeIPR(adData);
+[alpha0,ipr0,iprError] = computeAveErr(...
+    becExp.ScannedVariableList(1,:), ...
+    ipr0,"StdDev");
 figure(48922)
-plot(alpha0 * beta,ipr0,'.')
+errorbar(alpha0 * beta,ipr0,iprError,'.')
 xlabel("$\alpha$")
 ylabel("Initial State IPR")
 render
+
+%% Compute theoretical boundaries
+alphaTheory = linspace(min(alpha0),max(alpha0),1000);
+b1 = kpClassicalBoundary(alphaTheory,1);
+b2 = kpClassicalBoundary(alphaTheory,2);
+b3 = kpClassicalBoundary(alphaTheory,3);
 
 %% Analyze trials
 ipr = cell(1,nTrial);
@@ -51,6 +59,13 @@ for ii = 1:nTrial
     cb.Label.String = "Normalized IPR";
     title("$V_0 = "+V0 + "~E_{\mathrm{R}},~\mathrm{LastCycle}-" + (ii-1) + "$",'Interpreter','latex')
     render
+    hold on
+    if isInverted
+        plot(alphaTheory,b1,'--','LineWidth',1)
+        plot(alphaTheory,b2,'--','LineWidth',1)
+    else
+        plot(alphaTheory,b3,'--','LineWidth',1)
+    end
 end
 
 %% Plot average
