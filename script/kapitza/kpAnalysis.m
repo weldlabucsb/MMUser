@@ -1,7 +1,7 @@
 %% Load Trial and get parameters
 % trialNumber = [8945,8946,8948];
-trialNumber = [9108,9109,9110]; % Inverted
-% trialNumber = [9117]; % Non-inverted
+% trialNumber = [9108,9109,9110]; % Inverted
+trialNumber = [9117]; % Non-inverted
 nTrial = numel(trialNumber);
 % refTrialNumber = 8949;
 refTrialNumber = 9107;
