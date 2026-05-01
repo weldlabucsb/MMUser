@@ -1,11 +1,14 @@
 %% Parameters
-trialNumber = [9117]; % Non-inverted
+% trialNumber = [9117]; % Non-inverted
+trialNumber = [9144]; % inverted
 load LatticeCalib.mat
 sName = "LatticeScope";
-tRange = [0,0.1]*1e-3;
+tRange = [1,1.1]*1e-3;
 
-trialNumberKP1Kd = 9114;
-trialNumberKP2Kd = 9115;
+% trialNumberKP1Kd = 9114;
+% trialNumberKP2Kd = 9115;
+trialNumberKP1Kd = 9125;
+trialNumberKP2Kd = 9126;
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k(1) = becExp.KapitzaDirac.DepthOverAmplitude;
@@ -40,10 +43,13 @@ for runIdx = 1:becExp.NCompletedRun
     alpha = becExp.HardwareData.hw_KPModDepthAlpha(runIdx);
     for ii = 1:2
         s = scope.Sample(ii,idx);
-        Y = fft(s);
-        L = length(s);
-        bin = round(f * L / fs) + 1; % Find the bin corresponding to frequency f
-        guessPhase = wrapToPi(angle(Y(bin))) + pi;
+        % Y = fft(s);
+        % L = length(s);
+        % bin = round(f * L / fs) + 1; % Find the bin corresponding to frequency f
+        % guessPhase = wrapTo2Pi(angle(Y(bin))+pi/2);
+        basis = [sin(2*pi*f*t.'), cos(2*pi*f*t.')];
+        coeffs = basis \ s.';
+        guessPhase = wrapTo2Pi(atan2(coeffs(2), coeffs(1)));
 
         fd = SineFit1D([t.',s.']);
         fd.IsOverride = true;
@@ -64,7 +70,7 @@ for runIdx = 1:becExp.NCompletedRun
         figure(ii)
         fd.NPlot = 1e6;
         plot(t.',s.',fd.FitPlotData(:,1),fd.FitPlotData(:,2));
-        xlim([0,10e-6])
+        xlim([t(1),t(1)+10e-6])
     end
     V0(runIdx) = (abs(V(1) - V(2)) - V0Target)/V0Target;
     phaseDiff(runIdx) = (abs(diff(phase)) - pi)/pi;
