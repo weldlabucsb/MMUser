@@ -34,10 +34,12 @@ classdef KpPredistortion < handle
         IsUsingSpectrum = false % If we use spectrum AWG as the main AWG
         IsGuessUsingOldData = false % If we use old data to guess the starting point
         IsInverted = true % If we predict KP waveform using inverted condition
+        IsRampUpModulation = true % If we want to ramp up the modulation in 1 us
         AlphaMaximum = 25;
         NGrid = 10;
         BandwidthPd = [10,11]*1e6
-        RampTime = 200e-3
+        RampTime = 10e-3
+        InitialDepth = []
     end
 
     properties (SetAccess = protected)
@@ -442,10 +444,8 @@ classdef KpPredistortion < handle
                         %% Update dataset
                         for chIdx = 1:obj.NChannel
                             runIdx = numel(obj.Dataset(chIdx).KpParameter) + 1;
-                            if obj.IsGuessUsingOldData
-                                if isExact(chIdx)
-                                    [~,~,runIdx] = obj.findKpModData(chIdx,V0(vv),fList(ff),alphaList(aa),obj.Beta);
-                                end
+                            if isExact(chIdx)
+                                [~,~,runIdx] = obj.findKpModData(chIdx,V0(vv),fList(ff),alphaList(aa),obj.Beta);
                             end
                             obj.Dataset(chIdx).KpParameter{runIdx} = [V0(vv);fList(ff);alphaList(aa);obj.Beta];
                             obj.Dataset(chIdx).Y{runIdx} = controlWfl{chIdx}.Sample;
@@ -491,6 +491,7 @@ classdef KpPredistortion < handle
 
             %% Main loop
             for vv = 1:numel(V0)
+                targetDepth = obj.getInitialDepthTarget(V0(vv));
                 for aa = 1:nGrid
                     obj.setScopeRangeKp(V0(vv),alphaList(aa))
                         %% Update training parameters
@@ -602,12 +603,10 @@ classdef KpPredistortion < handle
                         %% Update dataset
                         for chIdx = 1:obj.NChannel
                             runIdx = numel(obj.Dataset(chIdx).KpRampParameter) + 1;
-                            if obj.IsGuessUsingOldData
-                                if isExact(chIdx)
-                                    [~,~,runIdx] = obj.findKpRampData(chIdx,V0(vv),alphaList(aa),obj.Beta,obj.IsInverted);
-                                end
+                            if isExact(chIdx)
+                                [~,~,runIdx] = obj.findKpRampData(chIdx,V0(vv),alphaList(aa),obj.Beta,obj.IsInverted,targetDepth);
                             end
-                            obj.Dataset(chIdx).KpRampParameter{runIdx} = [V0(vv);alphaList(aa);obj.Beta;obj.IsInverted];
+                            obj.Dataset(chIdx).KpRampParameter{runIdx} = [V0(vv);alphaList(aa);obj.Beta;obj.IsInverted;targetDepth];
                             obj.Dataset(chIdx).YRamp{runIdx} = resample(controlWfl{chIdx}.Sample,obj.SamplingRateRampSave,awgSr);
                             % obj.Dataset(chIdx).XTarget{obj.RunIdx} = targetWf{chIdx}.Sample;
                             obj.Error(chIdx,runIdx) = errorHistory{chIdx}(end);
@@ -972,16 +971,38 @@ classdef KpPredistortion < handle
                 V0
                 isDc = false
             end
-            tic;
             obj.setScopeSine
+            laserPower = obj.measureLaserPower;
+            %% Get KD data
+            load('LatticeCalib.mat','KP1Depth2Pd','KP2Depth2Pd')
+            k(1) = 1/(KP1Depth2Pd(1)-KP1Depth2Pd(0));
+            off(1) = KP1Depth2Pd(0);
+            k(2) = 1/(KP2Depth2Pd(1)-KP2Depth2Pd(0));
+            off(2) = KP2Depth2Pd(0);
+
+            %% Get the harmonic frequency
+            atom = getAtom("Lithium7");
+            laser = Laser(wavelength = 1064e-9,power = 1);
+            ol = OpticalLattice(atom,laser);
+            ol.DepthSpec = V0 * ol.RecoilEnergy;
+            f0 = ol.HarmonicFrequency;
+
+            %% Scan parameters
             nGrid = obj.NGrid;
             alphaList = linspace(2/obj.Beta,obj.AlphaMaximum,nGrid);
             fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
+            
+            %% Output parameters
             errorList = zeros(nGrid,nGrid,obj.NChannel);
-            laserPower = obj.measureLaserPower;
+            tRange = [0.5,0.6]*1e-3;
+            V0Measured = zeros(nGrid,nGrid);
+            modDepthMeasured = zeros(2,nGrid,nGrid);
+            phaseDiffMeasured = zeros(nGrid,nGrid);
+
             for aa = 1:nGrid
                 obj.setScopeRangeKp(V0,alphaList(aa))
                 for ff = 1:nGrid
+                    %% Get data
                     controlWfl = cell(1,2);
                     targetWfl = cell(1,2);
                     nCycle = floor(obj.SineDuration * fList(ff));
@@ -989,39 +1010,103 @@ classdef KpPredistortion < handle
                         [controlWfl{chIdx},targetWfl{chIdx}] = obj.predictKpMod(chIdx,V0,fList(ff),alphaList(aa),obj.Beta,nCycle,laserPower(chIdx),isDc);
                     end
                     obj.sendAndRead(controlWfl)
+
+                    t = obj.Scope.TimeList;
+                    fs = 1/(t(2) - t(1));
+                    idx = t>=tRange(1) & t<=tRange(2);
+                    t = t(idx);
+                    f = fList(ff);
+                    V = zeros(1,2);
+                    phase = zeros(1,2);
+                    alpha = alphaList(aa);
+                    beta = obj.Beta;
+
+                    %% Analysis
                     for chIdx = 1:obj.NChannel
+                        % RMS
                         [~,targetMl,scopeMl] = obj.processData(chIdx,targetWfl{chIdx}.WaveformOrigin{1},laserPower(chIdx),false,false);
                         scopeMl = obj.mlScope2realScope(chIdx,scopeMl,laserPower(chIdx));
                         targetMl = obj.mlScope2realScope(chIdx,targetMl,laserPower(chIdx));
                         offset = mean(targetMl);
                         errorList(ff,aa,chIdx) = obj.computeErrorRaw(scopeMl,targetMl,offset);
+
+                        % Sine fit
+                        s = obj.Scope.Sample(chIdx,idx);
+                        basis = [sin(2*pi*f*t.'), cos(2*pi*f*t.')];
+                        coeffs = basis \ s.';
+                        guessPhase = wrapTo2Pi(atan2(coeffs(2), coeffs(1)));
+
+                        fd = SineFit1D([t.',s.']);
+                        fd.IsOverride = true;
+                        fd.setDefaultOverride;
+                        fd.StartPointOverride(2) = f;
+                        fd.LowerOverride(2) = f;
+                        fd.UpperOverride(2) = f;
+                        fd.StartPointOverride(3) = guessPhase;
+                        fd.do;
+                        V(chIdx) = k(chIdx) * (fd.Coefficient(4) - off(ii));
+                        phase(chIdx) = wrapToPi(fd.Coefficient(3));
+                        if chIdx == 1
+                            modDepthTarget = alpha / 2 * beta;
+                        else
+                            modDepthTarget = (1+alpha/2) * alpha / (2 + alpha) * beta;
+                        end
+                        modDepthMeasured(chIdx,ff,aa) = (k(chIdx) * fd.Coefficient(1)/V0/modDepthTarget - 1);
+                        
+                        % Plot
+                        figure(34824+chIdx)
+                        fd.NPlot = 1e6;
+                        plot(t.',s.',fd.FitPlotData(:,1),fd.FitPlotData(:,2));
+                        xlim([t(1),t(1)+10e-6])
+                        title("Sine Fit, KP" + chIdx)
+                        drawnow
+
                         figure(34823+chIdx)
                         plot(1:numel(scopeMl),scopeMl,1:numel(targetMl),targetMl)
                         title("KP" + chIdx )
                         legend("Measured","Target")
                         drawnow
                     end
+                    V0Measured(ff,aa) = (abs(V(1) - V(2)) - V0)/V0;
+                    phaseDiffMeasured(ff,aa) = (abs(diff(phase)) - pi)/pi;
                     pause(0.1)
                 end
             end
+            plotError(V0Measured,"$V_0$")
+            plotError(phaseDiffMeasured,"Phase Difference")
+            plotError(modDepthMeasured(1,:),"Modulation Depth, KP1")
+            plotError(modDepthMeasured(2,:),"Modulation Depth, KP2")
+
+            function plotError(data,tt)
+                figure
+                imagesc(data,XData=alphaList * beta,YData=  fList/ f0)
+                xlabel("$\alpha$")
+                ylabel("$\Omega$")
+                cb = colorbar;
+                cb.Label.String = "Normalized Error";
+                title(tt,'Interpreter','latex')
+                render
+                clim([-max(abs(data(:))),max(abs(data(:)))])
+                colormap(bluewhitered)
+            end
+
             for chIdx = 1:obj.NChannel
                 close(figure(4830+chIdx))
                 figure(4830+chIdx)
-                img = imagesc(errorList(:,:,chIdx),'XData',alphaList,'YData',fList / 1e6);
-                ax = gca;
-                xlabel("alpha")
-                ylabel("f [MHz]")
+                imagesc(errorList(:,:,chIdx),'XData',alphaList,'YData',fList / f0);
+                xlabel("$\alpha$")
+                ylabel("$\Omega$")
                 cb = colorbar;
                 cb.Label.String = "Error, KP"+chIdx;
                 title("KP" + chIdx + ", V0 = " + V0 + ", beta = " + obj.Beta + ...
                     " Mean Error = " + mean(errorList(:,:,chIdx),"all"))
                 clim([0,0.03])
+                render
             end
             obj.setHardware
-            toc;
         end
 
-        function targetWfl = getKpTarget(obj,chIdx,V0,f,alpha,beta,nCycle,phi)
+        function targetWfl = getKpModTarget(obj,chIdx,V0,f,alpha,beta,nCycle,phi)
             % Get the target optical waveform for the given KP parameters
             calibName = "KP" + chIdx + "Depth2Pd";
             kdCalib = loadVar("LatticeCalib.mat",calibName);
@@ -1029,7 +1114,7 @@ classdef KpPredistortion < handle
             duration = 1/f * nCycle;
             rollOff = obj.PdRollOff(chIdx,f);
             if nargin == 7
-                phi = asin(-2/alpha/beta);
+                phi = obj.getPhaseTarget(V0,alpha,beta);
             end
             if chIdx == 1
                 depthWf = SineWave(...
@@ -1067,12 +1152,13 @@ classdef KpPredistortion < handle
             kdCalib = loadVar("LatticeCalib.mat",calibName);
             sr = obj.SamplingRateRamp;
 
-            if obj.IsInverted
-                phi = asin(-2/alpha/beta);
-            else
-                phi = 0;
-            end
-            phi = real(phi);
+            phi = obj.getPhaseTarget(V0,alpha,beta);
+            % if obj.IsInverted
+            %     phi = asin(-2/alpha/beta);
+            % else
+            %     phi = 0;
+            % end
+            % phi = real(phi);
 
             if chIdx == 1
                 VRamp = alpha/2 * V0 * (1 + beta * sin(phi + pi));
@@ -1088,51 +1174,54 @@ classdef KpPredistortion < handle
             targetWfl = WaveformList("1",waveformOrigin = {wfRamp},samplingRate = sr);
         end
 
+        function phi = getPhaseTarget(obj,V0,alpha,beta)
+            VTarget = obj.getInitialDepthTarget(V0);
+            if obj.IsInverted
+                VTarget = - VTarget;
+            end
+
+            phi = asin((VTarget/V0 - 1)/alpha/beta);
+            if ~isreal(phi)
+                warning("The phase is not real. Check your VTarget, alpha, beta values")
+                phi = real(phi);
+            end
+        end
+
+        function VTarget = getInitialDepthTarget(obj,V0)
+            if ~isempty(obj.InitialDepth)
+                VTarget = obj.InitialDepth;
+            else
+                VTarget = V0;
+            end
+        end
+
         function controlWfl = predictKp(obj,chIdx,V0,f,alpha,beta,nCycle,rampTime)
             if nCycle > 0
                 wflMod = obj.predictKpMod(chIdx,V0,f,alpha,beta,nCycle,1,false);
             end
-            % phi = asin(-2/alpha/beta);
-            % if chIdx == 1
-            %     VRamp = alpha/2 * V0 * (1 + beta * sin(phi + pi));
-            % else
-            %     VRamp = (alpha/2 +1) * V0 * (1 + beta * alpha / (alpha + 2) * sin(phi));
-            % end
-            % wfRamp = TanhRamp(...
-            %     duration=rampTime,...
-            %     rampTime=rampTime,...
-            %     startValue=0,...
-            %     stopValue=VRamp,samplingRate = obj.SamplingRateAwg);
-            % rampSample = wfRamp.Sample;
-            % rampSample = eval("Depth2Keysight" + chIdx + "(rampSample)");
-            % wfRamp2 = InterpolatedWaveform(duration = rampTime, samplingRate = obj.SamplingRateAwg);
-            % wfRamp2.SampleData = rampSample;
-            % wfRamp2.TimeData = wfRamp.StartTime:wfRamp.TimeStep:wfRamp.EndTime;
-            wfRamp = obj.predictKpRamp(chIdx,V0,alpha,beta,1,false);
+            wflRamp = obj.predictKpRamp(chIdx,V0,alpha,beta,1,false);
             if nCycle > 0
-                rampSample = wfRamp.Sample;
+                rampSample = wflRamp.Sample;
                 endControlVal = rampSample(end);
                 tTriansient = obj.IgnoredTime * 2;
                 nS = tTriansient * obj.SamplingRateAwg;
                 sIdx = 1:nS;
                 wfMod = wflMod.WaveformOrigin{1};
-                wfMod.SampleData(sIdx) = endControlVal * flip(sIdx-1)/(nS-1) + wfMod.SampleData(sIdx).' .* (sIdx-1)/(nS-1);
-                controlWfl = WaveformList("c",waveformOrigin={wfRamp.WaveformOrigin{1},wflMod.WaveformOrigin{1}},samplingRate = obj.SamplingRateAwg);
+                if obj.IsRampUpModulation
+                    wfMod.SampleData(sIdx) = endControlVal * flip(sIdx-1)/(nS-1) + wfMod.SampleData(sIdx).' .* (sIdx-1)/(nS-1);
+                end
+                controlWfl = WaveformList("c",waveformOrigin={wflRamp.WaveformOrigin{1},wfMod},samplingRate = obj.SamplingRateAwg);
             else
-                controlWfl = wfRamp;
+                controlWfl = wflRamp;
             end
         end
 
         function [controlWfl,targetWfl,isExact] = predictKpMod(obj,chIdx,V0,f,alpha,beta,nCycle,laserPower,isDc,phi)
             % Predict control waveform from KP parameters
-            isExact = false;
+            [~,isExact] = obj.findKpModData(chIdx,V0,f,alpha,beta);
             sr = obj.SamplingRateAwg;
             duration = 1/f * nCycle;
-            if obj.IsInverted
-                targetWfl = obj.getKpTarget(chIdx,V0,f,alpha,beta,nCycle);
-            else
-                targetWfl = obj.getKpTarget(chIdx,V0,f,alpha,beta,nCycle,0);
-            end
+            targetWfl = obj.getKpModTarget(chIdx,V0,f,alpha,beta,nCycle);
             targetWf = targetWfl.WaveformOrigin{1};
             if nargin == 10
                 targetWf.Phase = phi;
@@ -1240,9 +1329,10 @@ classdef KpPredistortion < handle
                 controlWf.SampleData = controlWfSampe;
                 controlWf.TimeData = tList;
             elseif obj.Method == "ILC"
+                targetDepth = obj.getInitialDepthTarget(V0);
                 nCut = 2500;
                 tList = targetWf.StartTime :(1/sr) : targetWf.EndTime;
-                [controlVoltage,isExact] = obj.findKpRampData(chIdx,V0,alpha,beta,obj.IsInverted);
+                [controlVoltage,isExact] = obj.findKpRampData(chIdx,V0,alpha,beta,obj.IsInverted,targetDepth);
                 controlVoltage = resample(controlVoltage,sr,obj.SamplingRateRampSave);
                 controlVoltage(1:nCut) = repmat(mean(controlVoltage(nCut+1:nCut*2)),1,nCut);
                 controlVoltage(end-nCut+1:end) = repmat(mean(controlVoltage(end-nCut*2+1:end-nCut)),1,nCut);
@@ -1573,11 +1663,11 @@ classdef KpPredistortion < handle
             isExact = all(v == A(:,runIdx));
         end
 
-        function [controlVoltage,isExact,runIdx] = findKpRampData(obj,chIdx,V0,alpha,beta,isInverted)
+        function [controlVoltage,isExact,runIdx] = findKpRampData(obj,chIdx,V0,alpha,beta,isInverted,targetDepth)
             % Find the best matched KP control waveform from the dataset,
             % then determine if this is an exact match
             A = cell2mat(obj.Dataset(chIdx).KpRampParameter);
-            v = [V0;alpha;beta;isInverted];
+            v = [V0;alpha;beta;isInverted;targetDepth];
             mu = mean(A, 2);
             sig = std(A, 0, 2);
             sig(sig==0) = mu(sig == 0);

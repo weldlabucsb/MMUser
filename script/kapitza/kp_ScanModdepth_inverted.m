@@ -101,14 +101,16 @@ wfi = se.InitialCondition.WaveFunction;
 wfi = wfi./sqrt(sum(abs(wfi).^2));
 sr = 1 / se.TimeStep / se.AveragePeriod;
 
-ol = se.SimRun(1).OpticalLattice;
+ol = OpticalLattice(se.Atom,se.Laser{1});
+ol.DepthSpec = -ol.Depth;
 % u0 = fft(se.InitialCondition.WaveFunction,101);
 % u0 = u0 ./ sqrt(sum(abs(u0).^2));
-u0 = ol.computeBand1D(0,0);
+[~,u0] = ol.computeBand1D(0,0);
 np = numel(u0);
 u0 = fft(u0,np);
 u0 = u0 ./ sqrt(sum(abs(u0).^2));
 
+ol.DepthSpec = abs(ol.Depth);
 f0 = ol.HarmonicFrequency;
 modFreq = zeros(1,se.NCompletedRun);
 modAmp = zeros(1,se.NCompletedRun);
@@ -135,6 +137,11 @@ for ii = 1:se.NRun
     overlap(ii) = mean(ctinterp(tSample));
     disp(ii)
 end
+alphaTheory = linspace(min(modAmpList),max(modAmpList),1000);
+b1 = kpClassicalBoundary(alphaTheory,1);
+b2 = kpClassicalBoundary(alphaTheory,2);
+
+
 overlap = reshape(overlap,nGrid,nGrid);
 figure(2354)
 ax = gca;
@@ -150,13 +157,18 @@ xlabel("\alpha")
 ylabel("\Omega")
 title("V_0 = " + ol.DepthLu + " E_R")
 cb = colorbar;
-cb.Label.String = "IPR";
+cb.Label.String = "Density Correlation";
 
-figure(2435)
-[~,idx] = min(abs(modFreqList-7.55));
-plot(modAmpList,overlap(idx,:))
-xlabel("\alpha")
-ylabel("IPR")
+hold on
+    plot(alphaTheory,b1,'--','LineWidth',1,'Color','w')
+    plot(alphaTheory,b2,'--','LineWidth',1,'Color','w')
+
+
+% figure(2435)
+% [~,idx] = min(abs(modFreqList-7.55));
+% plot(modAmpList,overlap(idx,:))
+% xlabel("\alpha")
+% ylabel("IPR")
 
 %% plot time evolution
 % modFreqList = linspace(2,26,nGrid) * f0;
