@@ -1,10 +1,15 @@
+close all
 %% Load Trial and get parameters
 % trialNumber = [8945,8946,8948];
 % trialNumber = [9108,9109,9110]; % Inverted
-trialNumber = [9117]; % Non-inverted
+% trialNumber = [9117]; % Non-inverted
+% trialNumber = 9144;
+trialNumber = 9157;
 nTrial = numel(trialNumber);
 % refTrialNumber = 8949;
-refTrialNumber = 9107;
+% refTrialNumber = 9107;
+% refTrialNumber = 9142;
+refTrialNumber = 9155;
 becExp = loadBecExp(refTrialNumber);
 beta = becExp.HardwareData.hw_KPModDepthBeta(1);
 V0 = becExp.HardwareData.hw_KPDepthEr(1);
@@ -14,19 +19,32 @@ ol = OpticalLattice(atom,laser);
 ol.DepthSpec = V0 * ol.RecoilEnergy;
 f0 = ol.HarmonicFrequency;
 isNormalize = true;
+metricName = "AtomNumber";
+yCenter = 325;
+windowWidth = 10;
+numberWindow = yCenter - windowWidth:yCenter + windowWidth;
 
 %% Compute reference IPR
 becExp = loadBecExp(refTrialNumber);
 load(fullfile(becExp.DataAnalysisPath,"AdData.mat"));
 adData = flip(adData,1);
-ipr0 = computeIPR(adData);
-[alpha0,ipr0,iprError] = computeAveErr(...
+switch metricName
+    case "IPR"
+        metric0 = computeIPR(adData);
+    case "AtomNumber"
+        metric0 = computeCentralAtomNumber(adData,numberWindow);
+    case "AtomNumberFraction"
+        metric0 = computeCentralAtomNumberFraction(adData,numberWindow);
+    case "AtomNumberFraction2"
+        metric0 = computeCentralAtomNumberFraction2(adData,numberWindow);
+end
+[alpha0,metric0,metricError] = computeAveErr(...
     becExp.ScannedVariableList(1,:), ...
-    ipr0,"StdDev");
+    metric0,"StdDev");
 figure(48922)
-errorbar(alpha0 * beta,ipr0,iprError,'.')
+errorbar(alpha0 * beta,metric0,metricError,'.')
 xlabel("$\alpha$")
-ylabel("Initial State IPR")
+ylabel("Initial State Metric")
 render
 
 %% Compute theoretical boundaries
@@ -36,7 +54,7 @@ b2 = kpClassicalBoundary(alphaTheory,2);
 b3 = kpClassicalBoundary(alphaTheory,3);
 
 %% Analyze trials
-ipr = cell(1,nTrial);
+metric = cell(1,nTrial);
 for ii = 1:nTrial
     becExp = loadBecExp(trialNumber(ii));
     isInverted = becExp.HardwareData.hw_KPIsInverted;
@@ -47,16 +65,30 @@ for ii = 1:nTrial
     adData,"None");
     Omega = f/f0;
     alpha = alpha0 * beta;
-    ipr{ii} = computeIPR(adData);
+    switch metricName
+        case "IPR"
+            metric{ii} = computeIPR(adData);
+            cbStr = "IPR";
+        case "AtomNumber"
+            metric{ii} = computeCentralAtomNumber(adData,numberWindow);
+            cbStr = "Central Peak Atom Number";
+        case "AtomNumberFraction"
+            metric{ii} = computeCentralAtomNumberFraction(adData,numberWindow);
+            cbStr = "Central Peak Atom Fraction";
+        case "AtomNumberFraction2"
+            metric{ii} = computeCentralAtomNumberFraction2(adData,numberWindow);
+            cbStr = "Central/Tail";
+    end
     if isNormalize
-        ipr{ii} = ipr{ii}./repmat(ipr0,numel(f),1);
+        metric{ii} = metric{ii}./repmat(metric0(:).',numel(f),1);
+        cbStr = cbStr + ", Normalized";
     end
     figure(ii + 2432)
-    imagesc(ipr{ii},XData=alpha,YData=Omega)
+    imagesc(metric{ii},XData=alpha,YData=Omega)
     xlabel("$\alpha$")
     ylabel("$\Omega$")
     cb = colorbar;
-    cb.Label.String = "Normalized IPR";
+    cb.Label.String = cbStr;
     title("$V_0 = "+V0 + "~E_{\mathrm{R}},~\mathrm{LastCycle}-" + (ii-1) + "$",'Interpreter','latex')
     render
     hold on
@@ -69,17 +101,17 @@ for ii = 1:nTrial
 end
 
 %% Plot average
-iprAverage = zeros(size(ipr{1}));
+metricAverage = zeros(size(metric{1}));
 for ii = 1:nTrial
-    iprAverage = iprAverage + ipr{ii};
+    metricAverage = metricAverage + metric{ii};
 end
-iprAverage = iprAverage / nTrial;
+metricAverage = metricAverage / nTrial;
 figure(23452)
-imagesc(iprAverage,XData=alpha,YData=Omega)
+imagesc(metricAverage,XData=alpha,YData=Omega)
 xlabel("$\alpha$")
 ylabel("$\Omega$")
 cb = colorbar;
-cb.Label.String = "Normalized IPR";
+cb.Label.String = cbStr;
 title("$V_0 = "+V0 + "~E_{\mathrm{R}},~\mathrm{Mean}" + "$",'Interpreter','latex')
 render
 hold on
@@ -106,16 +138,16 @@ figure(104)
 [r, c, ny, nx] = size(adData);
 mData = reshape(permute(adData, [1, 3, 2, 4]), r*ny, c*nx);
 img = imagesc(gca,mData/becExp.Ad.Unit);
-clim([0,15])
+clim([0,4])
 ax = gca;
 fz = 10;
 roiSize = becExp.Roi.CenterSize(3:4);
 yxBoundary = becExp.Roi.YXBoundary;
 ax.Units = "normalized";
-ax.XLabel.String = "$\Omega$";
+ax.XLabel.String = "$\alpha$";
 ax.XLabel.Interpreter = "latex";
 ax.XLabel.FontSize = fz;
-ax.YLabel.String = "$\alpha$";
+ax.YLabel.String = "$\Omega$";
 ax.YLabel.Interpreter = "latex";
 ax.YLabel.FontSize = fz;
 ax.Title.String = "TrialName: " + becExp.Name + ...
@@ -136,5 +168,33 @@ ax.YTickLabel = string(Omega);
 set(ax,'box','off')
 render
 
+function N = computeCentralAtomNumber(adData,wd)
+sz = size(adData);
+adData = adData(wd,:,:);
+sz(1) = numel(wd);
+adData = reshape(adData,sz);
+N = sum(adData,[1,2]);
+N = squeeze(N);
+% N = reshape(N,[1,sz(3:end)]);
+end
 
+function frac = computeCentralAtomNumberFraction(adData,wd)
+onedData = squeeze(sum(adData,2));
+onedData = onedData./sum(onedData,1);
+sz = size(onedData);
+fracData = onedData(wd,:);
+sz(1) = numel(wd);
+fracData = reshape(fracData,sz);
+frac = squeeze(sum(fracData,1));
+end
 
+function frac = computeCentralAtomNumberFraction2(adData,wd)
+onedData = squeeze(sum(adData,2));
+onedData = onedData./sum(onedData,1);
+sz = size(onedData);
+fracData = onedData(wd,:);
+sz(1) = numel(wd);
+fracData = reshape(fracData,sz);
+frac = squeeze(sum(fracData,1));
+frac = frac./(1-frac);
+end

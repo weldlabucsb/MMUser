@@ -1728,7 +1728,7 @@ classdef KpPredistortion < handle
             else
                 obj.Scope.Duration = 20e-3;
             end
-            obj.Scope.NSample = 10e6;
+            obj.Scope.NSample = 1e6;
             obj.Scope.set
             % pause(0.3)
             obj.Scope.startFromEdge
