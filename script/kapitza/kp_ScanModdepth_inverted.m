@@ -21,7 +21,7 @@ f0 = ol.HarmonicFrequency;
 temp = ol.DepthSpec;
 ol.DepthSpec = -temp;
 ic = InitialCondition("LatticeFourierSeSim1D");
-ic.QuasiMomentum = 0.1 * kL;
+ic.QuasiMomentum = 0.2 * kL;
 [~,ic.WaveFunction] = ol.computeBand1D(ic.QuasiMomentum,0);
 ol.DepthSpec = temp;
 
@@ -137,7 +137,7 @@ for ii = 1:se.NRun
     overlap(ii) = mean(ctinterp(tSample));
     disp(ii)
 end
-alphaTheory = linspace(min(modAmpList),max(modAmpList),1000);
+alphaTheory = linspace(min(modAmp),max(modAmp),1000);
 b1 = kpClassicalBoundary(alphaTheory,1);
 b2 = kpClassicalBoundary(alphaTheory,2);
 
