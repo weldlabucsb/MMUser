@@ -6,6 +6,7 @@ kpp.IsInverted = true;
 kpp.IsGuessUsingOldData = true;
 kpp.setHardware
 kpp.setHardware
+kpp.InitialDepth = 20;
 pause(0.5);
 kpp.DelayTimeEstimated = [2.8,2.9]*1e-6;
 kpp.measureDelay
@@ -14,5 +15,5 @@ kpp.measureDelay
 V0 = 10;
 kpp.getKpRampData(V0)
 kpp.getKpModData(V0)
-kpp.IsGuessUsingOldData = true;
+% kpp.kpTest(V0)
 

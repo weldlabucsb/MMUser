@@ -1,6 +1,14 @@
-function wfl = kpControl(chIdx,V0,f,alpha,beta,nCycle,rampTime,isInverted)
-if nargin == 7
-    isInverted = true;
+function wfl = kpControl(chIdx,V0,f,alpha,beta,nCycle,rampTime,isInverted,initialDepth)
+arguments
+    chIdx
+    V0
+    f
+    alpha
+    beta
+    nCycle
+    rampTime
+    isInverted = true
+    initialDepth = V0
 end
 folderPath = "B:\_Li\_LithiumData\HardwareLogs\KpPredistortionData";
 % dataName = "KppData_2026_04_20_16_40_41.mat";
@@ -8,6 +16,8 @@ folderPath = "B:\_Li\_LithiumData\HardwareLogs\KpPredistortionData";
 dataPath = findLatestFile(folderPath);
 kpp = loadVar(dataPath,"kpp");
 kpp.IsInverted = isInverted;
+kpp.InitialDepth = initialDepth;
+kpp.IsRampUpModulation = true;
 wfl = kpp.predictKp(chIdx,V0,f,alpha,beta,nCycle,rampTime);
 end
 

@@ -35,7 +35,7 @@ classdef KpPredistortion < handle
         IsGuessUsingOldData = false % If we use old data to guess the starting point
         IsInverted = true % If we predict KP waveform using inverted condition
         IsRampUpModulation = true % If we want to ramp up the modulation in 1 us
-        AlphaMaximum = 25;
+        AlphaMaximum = 60;
         NGrid = 10;
         BandwidthPd = [10,11]*1e6
         RampTime = 10e-3
@@ -206,6 +206,7 @@ classdef KpPredistortion < handle
             nGrid = 20;
             fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
             obj.setScopeChirp
+            pause(0.5)
             scopeSr = obj.SamplingRateScope;
             awgSr = obj.SamplingRateAwg;
             delay = [0;0];
@@ -301,7 +302,6 @@ classdef KpPredistortion < handle
             %% Set parameters
             obj.setScopeSine
             nGrid = obj.NGrid;
-            alphaList = linspace(2/obj.Beta,obj.AlphaMaximum,nGrid);
             fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
             laserPower = obj.measureLaserPower;
             rampCalib = cell(1,obj.NChannel);
@@ -320,6 +320,8 @@ classdef KpPredistortion < handle
 
             %% Main loop
             for vv = 1:numel(V0)
+                V0Target = obj.getInitialDepthTarget(V0(vv));
+                alphaList = linspace(2*V0Target/V0(vv)/obj.Beta,obj.AlphaMaximum,nGrid);
                 for aa = 1:nGrid
                     obj.setScopeRangeKp(V0(vv),alphaList(aa))
                     for ff = 1:nGrid
@@ -471,7 +473,6 @@ classdef KpPredistortion < handle
             %% Set parameters
             obj.setScopeRamp
             nGrid = obj.NGrid;
-            alphaList = linspace(2/obj.Beta,obj.AlphaMaximum,nGrid);
             laserPower = obj.measureLaserPower;
             rampCalib = cell(1,obj.NChannel);
             for chIdx = 1:obj.NChannel
@@ -491,6 +492,8 @@ classdef KpPredistortion < handle
 
             %% Main loop
             for vv = 1:numel(V0)
+                V0Target = obj.getInitialDepthTarget(V0(vv));
+                alphaList = linspace(2*V0Target/V0(vv)/obj.Beta,obj.AlphaMaximum,nGrid);
                 targetDepth = obj.getInitialDepthTarget(V0(vv));
                 for aa = 1:nGrid
                     obj.setScopeRangeKp(V0(vv),alphaList(aa))
@@ -989,12 +992,13 @@ classdef KpPredistortion < handle
 
             %% Scan parameters
             nGrid = obj.NGrid;
-            alphaList = linspace(2/obj.Beta,obj.AlphaMaximum,nGrid);
+            V0Target = obj.getInitialDepthTarget(V0);
+            alphaList = linspace(2*V0Target/V0/obj.Beta,obj.AlphaMaximum,nGrid);
             fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
             
             %% Output parameters
             errorList = zeros(nGrid,nGrid,obj.NChannel);
-            tRange = [0.5,0.6]*1e-3;
+            tRange = [0.3,0.8]*1e-4;
             V0Measured = zeros(nGrid,nGrid);
             modDepthMeasured = zeros(2,nGrid,nGrid);
             phaseDiffMeasured = zeros(nGrid,nGrid);
@@ -1044,7 +1048,7 @@ classdef KpPredistortion < handle
                         fd.UpperOverride(2) = f;
                         fd.StartPointOverride(3) = guessPhase;
                         fd.do;
-                        V(chIdx) = k(chIdx) * (fd.Coefficient(4) - off(ii));
+                        V(chIdx) = k(chIdx) * (fd.Coefficient(4) - off(chIdx));
                         phase(chIdx) = wrapToPi(fd.Coefficient(3));
                         if chIdx == 1
                             modDepthTarget = alpha / 2 * beta;
@@ -1061,7 +1065,7 @@ classdef KpPredistortion < handle
                         title("Sine Fit, KP" + chIdx)
                         drawnow
 
-                        figure(34823+chIdx)
+                        figure(3482+chIdx)
                         plot(1:numel(scopeMl),scopeMl,1:numel(targetMl),targetMl)
                         title("KP" + chIdx )
                         legend("Measured","Target")
@@ -1070,12 +1074,13 @@ classdef KpPredistortion < handle
                     V0Measured(ff,aa) = (abs(V(1) - V(2)) - V0)/V0;
                     phaseDiffMeasured(ff,aa) = (abs(diff(phase)) - pi)/pi;
                     pause(0.1)
+                    disp([aa,ff])
                 end
             end
             plotError(V0Measured,"$V_0$")
             plotError(phaseDiffMeasured,"Phase Difference")
-            plotError(modDepthMeasured(1,:),"Modulation Depth, KP1")
-            plotError(modDepthMeasured(2,:),"Modulation Depth, KP2")
+            plotError(squeeze(modDepthMeasured(1,:,:)),"Modulation Depth, KP1")
+            plotError(squeeze(modDepthMeasured(2,:,:)),"Modulation Depth, KP2")
 
             function plotError(data,tt)
                 figure
