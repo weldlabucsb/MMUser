@@ -4,7 +4,7 @@ close all
 % trialNumber = [9108,9109,9110]; % Inverted
 % trialNumber = [9117]; % Non-inverted
 % trialNumber = 9144;
-trialNumber = 9188;
+trialNumber = 9249;
 nTrial = numel(trialNumber);
 % refTrialNumber = 8949;
 % refTrialNumber = 9107;
@@ -18,8 +18,8 @@ laser = Laser(wavelength = 1064e-9,power = 1);
 ol = OpticalLattice(atom,laser);
 ol.DepthSpec = V0 * ol.RecoilEnergy;
 f0 = ol.HarmonicFrequency;
-isNormalize = true;
-metricName = "AtomNumberFraction";
+isNormalize = false;
+metricName = "IPR";
 yCenter = 325;
 windowWidth = 10;
 numberWindow = yCenter - windowWidth:yCenter + windowWidth;

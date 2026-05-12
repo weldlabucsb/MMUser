@@ -40,6 +40,10 @@ classdef KpPredistortion < handle
         BandwidthPd = [10,11]*1e6
         RampTime = 10e-3
         InitialDepth = []
+        AlphaListOverride = []
+        FrequencyListOverride = []
+        IsOverride = 0
+        BmTime = 100e-6
     end
 
     properties (SetAccess = protected)
@@ -302,7 +306,11 @@ classdef KpPredistortion < handle
             %% Set parameters
             obj.setScopeSine
             nGrid = obj.NGrid;
-            fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
+            if obj.IsOverride
+                fList=obj.FrequencyListOverride;
+            else
+                fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
+            end
             laserPower = obj.measureLaserPower;
             rampCalib = cell(1,obj.NChannel);
             for chIdx = 1:obj.NChannel
@@ -321,10 +329,17 @@ classdef KpPredistortion < handle
             %% Main loop
             for vv = 1:numel(V0)
                 V0Target = obj.getInitialDepthTarget(V0(vv));
-                alphaList = linspace(2*V0Target/V0(vv)/obj.Beta,obj.AlphaMaximum,nGrid);
-                for aa = 1:nGrid
+                if obj.IsOverride
+                    alphaList=obj.AlphaListOverride;
+                    
+                else
+                    alphaList = linspace(2*V0Target/V0(vv)/obj.Beta,obj.AlphaMaximum,nGrid);
+                end
+                nAlphaCounts=length(alphaList);
+                nFreqCounts=length(fList);
+                for aa = 1:nAlphaCounts
                     obj.setScopeRangeKp(V0(vv),alphaList(aa))
-                    for ff = 1:nGrid
+                    for ff = 1:nFreqCounts
                         %% Update training parameters
                         % if alphaList(aa) <= 6
                         %     nIter = nIter0 * 2;
@@ -493,9 +508,15 @@ classdef KpPredistortion < handle
             %% Main loop
             for vv = 1:numel(V0)
                 V0Target = obj.getInitialDepthTarget(V0(vv));
-                alphaList = linspace(2*V0Target/V0(vv)/obj.Beta,obj.AlphaMaximum,nGrid);
+                
+                if obj.IsOverride
+                    alphaList=obj.AlphaListOverride;
+                else
+                    alphaList = linspace(2*V0Target/V0(vv)/obj.Beta,obj.AlphaMaximum,nGrid);
+                end
+                nAlphaCount=length(alphaList);
                 targetDepth = obj.getInitialDepthTarget(V0(vv));
-                for aa = 1:nGrid
+                for aa = 1:nAlphaCount
                     obj.setScopeRangeKp(V0(vv),alphaList(aa))
                         %% Update training parameters
                         % if alphaList(aa) <= 6
@@ -993,19 +1014,29 @@ classdef KpPredistortion < handle
             %% Scan parameters
             nGrid = obj.NGrid;
             V0Target = obj.getInitialDepthTarget(V0);
-            alphaList = linspace(2*V0Target/V0/obj.Beta,obj.AlphaMaximum,nGrid);
-            fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
+            
+
+            if obj.IsOverride
+                alphaList=obj.AlphaListOverride;
+                fList=obj.FrequencyListOverride;
+            else
+                alphaList = linspace(2*V0Target/V0/obj.Beta,obj.AlphaMaximum,nGrid);
+                fList = linspace(obj.FrequencyRange(1),obj.FrequencyRange(2),nGrid);
+            end
+
+            nAlphaCount=length(alphaList);
+            nFreqCount=length(fList);
             
             %% Output parameters
-            errorList = zeros(nGrid,nGrid,obj.NChannel);
+            errorList = zeros(nFreqCount,nAlphaCount,obj.NChannel);
             tRange = [0.3,0.8]*1e-4;
-            V0Measured = zeros(nGrid,nGrid);
-            modDepthMeasured = zeros(2,nGrid,nGrid);
-            phaseDiffMeasured = zeros(nGrid,nGrid);
+            V0Measured = zeros(nFreqCount,nAlphaCount);
+            modDepthMeasured = zeros(2,nFreqCount,nAlphaCount);
+            phaseDiffMeasured = zeros(nFreqCount,nAlphaCount);
 
-            for aa = 1:nGrid
+            for aa = 1:nAlphaCount
                 obj.setScopeRangeKp(V0,alphaList(aa))
-                for ff = 1:nGrid
+                for ff = 1:nFreqCount
                     %% Get data
                     controlWfl = cell(1,2);
                     targetWfl = cell(1,2);
@@ -1200,7 +1231,7 @@ classdef KpPredistortion < handle
             end
         end
 
-        function controlWfl = predictKp(obj,chIdx,V0,f,alpha,beta,nCycle,rampTime)
+        function controlWfl = predictKp(obj,chIdx,V0,f,alpha,beta,nCycle,rampTime,isBm)
             if nCycle > 0
                 wflMod = obj.predictKpMod(chIdx,V0,f,alpha,beta,nCycle,1,false);
             end
@@ -1215,9 +1246,27 @@ classdef KpPredistortion < handle
                 if obj.IsRampUpModulation
                     wfMod.SampleData(sIdx) = endControlVal * flip(sIdx-1)/(nS-1) + wfMod.SampleData(sIdx).' .* (sIdx-1)/(nS-1);
                 end
-                controlWfl = WaveformList("c",waveformOrigin={wflRamp.WaveformOrigin{1},wfMod},samplingRate = obj.SamplingRateAwg);
+                if isBm
+                    wfRampDown = LinearRamp(...
+                        duration = obj.BmTime,...
+                        rampTime = obj.BmTime,...
+                        startValue = wfMod.SampleData(end),...
+                        stopValue = -0.5);
+                    controlWfl = WaveformList("c",waveformOrigin={wflRamp.WaveformOrigin{1},wfMod,wfRampDown},samplingRate = obj.SamplingRateAwg);
+                else
+                    controlWfl = WaveformList("c",waveformOrigin={wflRamp.WaveformOrigin{1},wfMod},samplingRate = obj.SamplingRateAwg);
+                end
             else
-                controlWfl = wflRamp;
+                if isBm
+                    wfRampDown = LinearRamp(...
+                        duration = obj.BmTime,...
+                        rampTime = obj.BmTime,...
+                        startValue = wflRamp.Sample(end),...
+                        stopValue = -0.5);
+                    controlWfl = WaveformList("c",waveformOrigin={wflRamp.WaveformOrigin{1},wfRampDown},samplingRate = obj.SamplingRateAwg);
+                else
+                    controlWfl = wflRamp;
+                end
             end
         end
 
