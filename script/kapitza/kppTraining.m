@@ -11,8 +11,8 @@ pause(0.5);
 kpp.DelayTimeEstimated = [2.8,2.9]*1e-6;
 kpp.measureDelay
 kpp.IsOverride=true;  % 1= using alpha & freq override list   0 = using phase diagram params
-kpp.AlphaListOverride=[54];
-kpp.FrequencyListOverride=linspace(1e6, 2.4e6, 20);
+kpp.AlphaListOverride=[36];
+kpp.FrequencyListOverride=linspace(0.9e6, 2.4e6, 25);
 % kpp.FrequencyListOverride=linspace(100e3, 2.4e6, 10);
 
 
