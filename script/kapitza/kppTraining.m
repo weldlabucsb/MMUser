@@ -10,10 +10,12 @@ kpp.InitialDepth = 20;
 pause(0.5);
 kpp.DelayTimeEstimated = [2.8,2.9]*1e-6;
 kpp.measureDelay
+
+
 kpp.IsOverride=true;  % 1= using alpha & freq override list   0 = using phase diagram params
-kpp.AlphaListOverride=[36];
-kpp.FrequencyListOverride=linspace(0.9e6, 2.4e6, 25);
-% kpp.FrequencyListOverride=linspace(100e3, 2.4e6, 10);
+kpp.AlphaListOverride=[48.4444444444];
+kpp.FrequencyListOverride=linspace(0.9e6, 2.4e6, 15);
+% kpp.FrequencyListOverride=linspace(100e3, 2.4e6, 10); %usual fmod list
 
 
 %%
@@ -25,17 +27,31 @@ V0 = 10;
 % kpp.getKpModData(V0);
 
 
-
+% Ramp data for various lattice depths
 for Vi = 6:2:30
     kpp.RampTime = 10e-3;
     kpp.InitialDepth = Vi;
     kpp.getKpRampData(V0)
-    % kpp.getKpModData(V0)
 end
 
+% mod data for first override above, reseting Vi to 20
 kpp.InitialDepth = 20;
 kpp.RampTime = 10e-3;
-kpp.getKpRampData(V0);
+%kpp.getKpRampData(V0);
+kpp.getKpModData(V0);
+
+%% second fixed alpha cut, weak drive
+kpp.InitialDepth = 20;
+kpp.RampTime = 10e-3;
+kpp.AlphaListOverride=[8];
+kpp.FrequencyListOverride=linspace(0.9e6, 2.4e6, 15);
+kpp.getKpModData(V0);
+
+
+%% fixed omega cut
+
+kpp.FrequencyListOverride=[1.3778e6];
+kpp.AlphaListOverride=linspace(8, 60, 15);
 kpp.getKpModData(V0);
 
 % kpp.SamplingRateRamp = 10e6;
