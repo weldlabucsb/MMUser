@@ -91,7 +91,7 @@ classdef KpPredistortion < handle
             obj.Scope.Duration = 10^round(log10(obj.ChirpDuration));
             obj.Scope.IsEnabled = [true,true,false,false];
             obj.Scope.TriggerSource = "External";
-            obj.Scope.TriggerLevel = 0.3;
+            obj.Scope.TriggerLevel = 0.5;
             obj.Scope.VerticalRange = [2.5,5,1.5,2];
             obj.Scope.VerticalOffset= [-1.24,-2.4,-0.75 + .02,0];
             obj.Scope.NSample = 10^round(log10(obj.ChirpDuration)) * obj.SamplingRateScope;
@@ -481,7 +481,7 @@ classdef KpPredistortion < handle
             toc
         end
 
-        function getKpRampData(obj,V0, lowPassFreq)
+        function getKpRampData(obj,V0, lowPassFreq, isPhaseFree)
             if nargin<3
                 lowPassFreq=1e3;
                 sliderCt=1e4;
@@ -489,6 +489,12 @@ classdef KpPredistortion < handle
                 awgSr = obj.SamplingRateRamp;
                 sliderCt=ceil(awgSr/lowPassFreq);
             end
+            if nargin<4
+                isPhaseFree=0;
+            end
+
+            
+
             disp('ILC: gathering control voltage data for KP Ramp...')
             tic;
             obj.IsTraining = true;
@@ -569,7 +575,9 @@ classdef KpPredistortion < handle
                             if all(isConverged)
                                 break
                             end
-                            obj.sendAndRead(controlWfl,0.5)
+                            
+                            obj.sendAndRead(controlWfl,0.001)
+                            % pause(10e-3);
                             % controlWfl = cell(1,2);
                             for chIdx = 1:obj.NChannel 
                                 %% Stop if converged
@@ -595,7 +603,12 @@ classdef KpPredistortion < handle
                                     obj.realScope2MlScope(chIdx,targetWf{chIdx}.StopValue/2,laserPower(chIdx))+1);
                                 controlMl = controlMl + P(chIdx) * (targetMl - scopeMl);   
                                 controlMl = max(min(controlMl, obj.VoltageRange(2)), obj.VoltageRange(1));
-                                controlMl = lowpass(controlMl, lowPassFreq, awgSr);
+                                if isPhaseFree
+                                    [b,a] = butter(4, lowPassFreq/(awgSr/2), 'low');
+                                    controlMl = filtfilt(b,a,controlMl);
+                                else
+                                    controlMl = lowpass(controlMl, lowPassFreq, awgSr);
+                                end
                                 controlMl = movmean(controlMl,sliderCt);
                                 controlWf = InterpolatedWaveform(duration = targetWf{chIdx}.Duration,samplingRate=awgSr);
                                 controlWf.TimeData = tList;
@@ -625,7 +638,7 @@ classdef KpPredistortion < handle
                                 end
                                 if kk >= 10
                                     histError = errorHistory{chIdx}(end-9:end);
-                                    if std(histError) / mean(histError) < 0.1 || std(histError) < eth0/3
+                                    if  std(histError) < eth0/3 || std(histError) / mean(histError) < 0.1 
                                         isConverged(chIdx) = 1;
                                     end
                                 end
