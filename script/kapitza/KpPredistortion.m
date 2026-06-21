@@ -481,7 +481,7 @@ classdef KpPredistortion < handle
             toc
         end
 
-        function getKpRampData(obj,V0, lowPassFreq)
+        function getKpRampData(obj,V0, lowPassFreq, isPhaseFree, itercts)
             if nargin<3
                 lowPassFreq=1e3;
                 sliderCt=1e4;
@@ -489,6 +489,15 @@ classdef KpPredistortion < handle
                 awgSr = obj.SamplingRateRamp;
                 sliderCt=ceil(awgSr/lowPassFreq);
             end
+            if nargin<4
+                isPhaseFree=0;
+            end
+            if nargin<5
+                itercts=50;
+            end
+
+            
+
             disp('ILC: gathering control voltage data for KP Ramp...')
             tic;
             obj.IsTraining = true;
@@ -508,7 +517,7 @@ classdef KpPredistortion < handle
             ignoredPoints = round(ignoredPoints * awgSr / obj.SamplingRateMl);
 
             %% Training parameters
-            nIter0 = 50;        % How many times to update the waveform
+            nIter0 = itercts;        % How many times to update the waveform
             P = [0.6,0.6];
             eth0 = obj.ErrorThreshold;
 
@@ -569,7 +578,9 @@ classdef KpPredistortion < handle
                             if all(isConverged)
                                 break
                             end
+                            
                             obj.sendAndRead(controlWfl,0.5)
+                            % pause(10e-3);
                             % controlWfl = cell(1,2);
                             for chIdx = 1:obj.NChannel 
                                 %% Stop if converged
@@ -595,7 +606,12 @@ classdef KpPredistortion < handle
                                     obj.realScope2MlScope(chIdx,targetWf{chIdx}.StopValue/2,laserPower(chIdx))+1);
                                 controlMl = controlMl + P(chIdx) * (targetMl - scopeMl);   
                                 controlMl = max(min(controlMl, obj.VoltageRange(2)), obj.VoltageRange(1));
-                                controlMl = lowpass(controlMl, lowPassFreq, awgSr);
+                                if isPhaseFree
+                                    [b,a] = butter(4, lowPassFreq/(awgSr/2), 'low');
+                                    controlMl = filtfilt(b,a,controlMl);
+                                else
+                                    controlMl = lowpass(controlMl, lowPassFreq, awgSr);
+                                end
                                 controlMl = movmean(controlMl,sliderCt);
                                 controlWf = InterpolatedWaveform(duration = targetWf{chIdx}.Duration,samplingRate=awgSr);
                                 controlWf.TimeData = tList;
@@ -625,7 +641,7 @@ classdef KpPredistortion < handle
                                 end
                                 if kk >= 10
                                     histError = errorHistory{chIdx}(end-9:end);
-                                    if std(histError) / mean(histError) < 0.1 || std(histError) < eth0/3
+                                    if  std(histError) < eth0/3 || std(histError) / mean(histError) < 0.1 
                                         isConverged(chIdx) = 1;
                                     end
                                 end
@@ -1241,11 +1257,25 @@ classdef KpPredistortion < handle
             end
         end
 
-        function controlWfl = predictKp(obj,chIdx,V0,f,alpha,beta,nCycle,rampTime,isBm)
+        function controlWfl = predictKp(obj,chIdx,V0,f,alpha,beta,nCycle,rampTime,isBm, isrunningExp, bmTime)
+            if nargin<10
+                isrunningExp=0;
+            end
+
+            if nargin<11
+                bmTime=obj.BmTime;
+            else
+                obj.BmTime=bmTime;
+            end
+
+            if isrunningExp
+                obj.IsTraining=0;
+            end
+
             if nCycle > 0
                 wflMod = obj.predictKpMod(chIdx,V0,f,alpha,beta,nCycle,1,false);
             end
-            wflRamp = obj.predictKpRamp(chIdx,V0,alpha,beta,1,false);
+            wflRamp = obj.predictKpRamp(chIdx,V0,alpha,beta,1,false,rampTime);
             if nCycle > 0
                 rampSample = wflRamp.Sample;
                 endControlVal = rampSample(end);
@@ -1279,7 +1309,7 @@ classdef KpPredistortion < handle
                     %     startValue = wflRamp.Sample(end),...
                     %     stopValue = -0.5);
                     % controlWfl = WaveformList("c",waveformOrigin={wflRamp.WaveformOrigin{1},wfRampDown},samplingRate = obj.SamplingRateAwg);
-
+z
                     % Use lines for KpRampDown with training.
                     wfRampDown = obj.predictKpRamp(chIdx,V0,alpha,beta,1,false, obj.BmTime, false);
                     controlWfl = WaveformList("c",waveformOrigin={wflRamp.WaveformOrigin{1},wfRampDown.WaveformOrigin{1}},samplingRate = obj.SamplingRateAwg);
@@ -1385,6 +1415,9 @@ classdef KpPredistortion < handle
         function [controlWfl,targetWfl,isExact] = predictKpRamp(obj,chIdx,V0,alpha,beta,laserPower,isDc, rampTime, isRampup)
             if nargin<8
                 rampTime=obj.RampTime;
+            end
+
+            if nargin<9
                 isRampup=true;
             end
             % Predict control waveform from KP parameters

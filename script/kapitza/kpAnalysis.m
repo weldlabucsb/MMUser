@@ -1,16 +1,21 @@
 close all
 %% Load Trial and get parameters
 % trialNumber = [8945,8946,8948];
-% trialNumber = [9108,9109,9110]; % Inverted
-% trialNumber = [9117]; % Non-inverted
+%trialNumber = [9108,9109,9110]; % Inverted
+trialNumber = [9117]; % Non-inverted
+%trialNumber=9108
 % trialNumber = 9144;
-trialNumber = 9249;
+%trialNumber = 9249;
+%trialNumber = 9402; %non-inverted, 1ms
+outputFolder = 'B:\__Lab Member Folders\Nicole\Lithium\9117noninvertednorm';
+mkdir(outputFolder)
 nTrial = numel(trialNumber);
 % refTrialNumber = 8949;
-% refTrialNumber = 9107;
+refTrialNumber = 9107;
 % refTrialNumber = 9142;
-refTrialNumber = 9189;
-becExp = loadBecExp(refTrialNumber);
+%refTrialNumber = 9189; 
+%refTrialNumber=9403; %non-inverted
+becExp = loadBecExp(refTrialNumber); %prev loadBecExp(refTrialNumber)
 beta = becExp.HardwareData.hw_KPModDepthBeta(1);
 V0 = becExp.HardwareData.hw_KPDepthEr(1);
 atom = getAtom("Lithium7");
@@ -18,9 +23,9 @@ laser = Laser(wavelength = 1064e-9,power = 1);
 ol = OpticalLattice(atom,laser);
 ol.DepthSpec = V0 * ol.RecoilEnergy;
 f0 = ol.HarmonicFrequency;
-isNormalize = false;
+isNormalize =true;
 metricName = "IPR";
-yCenter = 325;
+yCenter = 325 ; % previously 325, width of 10? 456
 windowWidth = 10;
 numberWindow = yCenter - windowWidth:yCenter + windowWidth;
 
@@ -63,7 +68,8 @@ for ii = 1:nTrial
     becExp.ScannedVariableList(1,:), ...
     becExp.ScannedVariableList(2,:), ...
     adData,"None");
-    Omega = f/f0;
+    Omega = f/f0; 
+    %Omega=f;
     alpha = alpha0 * beta;
     switch metricName
         case "IPR"
@@ -122,6 +128,13 @@ else
     plot(alphaTheory,b3,'--','LineWidth',1,'Color','w')
 end
 
+
+writematrix(alpha(:), fullfile(outputFolder, 'phase_alpha_axis.csv'));
+writematrix(Omega(:), fullfile(outputFolder, 'phase_omega_axis.csv'));
+writematrix(metricAverage, fullfile(outputFolder, 'phase_ipr_matrix.csv'));
+
+theory_matrix = [alphaTheory(:), b1(:), b2(:), b3(:)];
+writematrix(theory_matrix, fullfile(outputFolder, 'phase_theory_boundaries.csv'));
 %% Plot adMix
 becExp = loadBecExp(trialNumber(1));
 load(fullfile(becExp.DataAnalysisPath,"AdData.mat"));
@@ -131,6 +144,7 @@ adData = flip(adData,1);
     becExp.ScannedVariableList(2,:), ...
     adData,"None");
 Omega = yTick/f0;
+%Omega = yTick;
 alpha = xTick * beta;
 
 close(figure(104))

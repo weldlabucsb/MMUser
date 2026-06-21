@@ -15,21 +15,53 @@ kpp.measureDelay
 
 
 kpp.IsOverride=true;  % 1= using alpha & freq override list   0 = using phase diagram params
-kpp.AlphaListOverride=[54];
-kpp.FrequencyListOverride=linspace(0.9e6, 2.4e6, 15);
+kpp.AlphaListOverride=linspace(8, 60, 25);
+% kpp.FrequencyListOverride=[100e3, 2.4e6, 10];
+kpp.FrequencyListOverride=[2.4e6, 1.2e6];
 % kpp.FrequencyListOverride=linspace(100e3, 2.4e6, 10); %usual fmod list
 
 
 %%
+% V0 = 10;
+% kpp.InitialDepth = 20;
+% kpp.RampTime=10e-3;
+% kpp.getKpRampData(V0);
+% kpp.getKpModData(V0);
+
+
+% V0 = 10;
+% kpp.InitialDepth = 20;
+% kpp.RampTime=1e-3;
+% kpp.IsOverride=false;
+% kpp.getKpRampData(V0, 1e4);
+% % kpp.getKpModData(V0);
+
 V0 = 10;
+kpp.RampTime=400e-6;
+kpp.IsOverride=true;
+kpp.getKpRampData(V0, 2.5e5);
+
+
+% V0 = 10;
+% kpp.RampTime=100e-6;
+% kpp.IsOverride=false;
+% kpp.getKpRampData(V0, 2.5e5, 1, 15);
+% 
+V0 = 10;
+kpp.InitialDepth = 20;
+kpp.RampTime=10e-3;
+kpp.getKpRampData(V0);
+kpp.getKpModData(V0);
+
+
 
 %% Try with shortest RampTraining for bandmapping
-kpp.RampTime=100e-6;
-% kpp.IsOverride=false;
-kpp.getKpRampData(V0, 2.5e5);
-kpp.RampTime=400e-6;
-% kpp.IsOverride=false;
-kpp.getKpRampData(V0, 1e5);
+% kpp.RampTime=100e-6;
+% % kpp.IsOverride=false;
+% kpp.getKpRampData(V0, 2.5e5);
+% kpp.RampTime=400e-6;
+% % kpp.IsOverride=false;
+% kpp.getKpRampData(V0, 1e5);
 
 %% Do Normal KpRampTimeTraining
 
@@ -40,53 +72,60 @@ kpp.getKpRampData(V0, 1e5);
 
 
 % Ramp data for various lattice depths
-for Vi = 6:2:30
-    kpp.RampTime = 10e-3;
-    kpp.InitialDepth = Vi;
-    kpp.getKpRampData(V0)
-end
+% for Vi = 6:2:30
+%     kpp.RampTime = 10e-3;
+%     kpp.InitialDepth = Vi;
+%     kpp.getKpRampData(V0)
+% end
 
 % mod data for first override above, reseting Vi to 20
-kpp.InitialDepth = 20;
-kpp.RampTime = 10e-3;
-%kpp.getKpRampData(V0);
-kpp.getKpModData(V0);
-
-%% second fixed alpha cut, weak drive
-kpp.InitialDepth = 20;
-kpp.RampTime = 10e-3;
-kpp.AlphaListOverride=[8];
-kpp.FrequencyListOverride=linspace(0.9e6, 2.4e6, 15);
-kpp.getKpModData(V0);
-
-
-%% fixed omega cut
-
-kpp.FrequencyListOverride=[1.3778e6];
-kpp.AlphaListOverride=linspace(8, 60, 15);
-kpp.getKpModData(V0);
-
-% kpp.SamplingRateRamp = 10e6;
-% kpp.InitialDepth = 20;
-% kpp.RampTime = 50e-3; make sure scope range is long enough
-% kpp.getKpRampData(V0);
-% % kpp.getKpModData(V0);
-
-% kpp.kpTest(V0)
-% kpp.SamplingRateRamp = 50e6;
 % kpp.InitialDepth = 20;
 % kpp.RampTime = 10e-3;
-% kpp.getKpRampData(V0)
-
-%% Normal Scan
-kpp.SamplingRateRamp = 50e6;
-kpp.IsOverride=false;
-kpp.InitialDepth = 20;
-kpp.RampTime = 10e-3;
 % kpp.getKpRampData(V0);
-kpp.getKpModData(V0);
+% kpp.getKpModData(V0);
+% 
+% 
+% kpp.IsInverted=true;
+% kpp.AlphaListOverride=linspace(8, 60, 10);
+% kpp.FrequencyListOverride=0.88e6;
+% kpp.getKpRampData(V0);
+% kpp.getKpModData(V0);
 
-%% Try with shortest RampTraining for bandmapping
-% kpp.RampTime=100e-6;
-% kpp.IsOverride=true;
+% %% second fixed alpha cut, weak drive
+% kpp.InitialDepth = 20;
+% kpp.RampTime = 10e-3;
+% kpp.AlphaListOverride=[8];
+% kpp.FrequencyListOverride=linspace(0.9e6, 2.4e6, 15);
+% kpp.getKpModData(V0);
+% 
+% 
+% %% fixed omega cut
+% 
+% kpp.FrequencyListOverride=[1.3778e6];
+% kpp.AlphaListOverride=linspace(8, 60, 15);
+% kpp.getKpModData(V0);
+% 
+% % kpp.SamplingRateRamp = 10e6;
+% % kpp.InitialDepth = 20;
+% % kpp.RampTime = 50e-3; make sure scope range is long enough
+% % kpp.getKpRampData(V0);
+% % % kpp.getKpModData(V0);
+% 
+% % kpp.kpTest(V0)
+% % kpp.SamplingRateRamp = 50e6;
+% % kpp.InitialDepth = 20;
+% % kpp.RampTime = 10e-3;
+% % kpp.getKpRampData(V0)
+% 
+% %% Normal Scan
+% kpp.SamplingRateRamp = 50e6;
+% kpp.IsOverride=false;
+% kpp.InitialDepth = 20;
+% kpp.RampTime = 10e-3;
+% % kpp.getKpRampData(V0);
+% kpp.getKpModData(V0);
+% 
+% %% Try with shortest RampTraining for bandmapping
+% % kpp.RampTime=100e-6;
+% % kpp.IsOverride=true;
 % kpp.getKpRampData(V0, 2.5e5);
