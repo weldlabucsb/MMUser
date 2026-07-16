@@ -130,7 +130,7 @@ classdef KpPredistortion < handle
             obj.MainAwg.WaveformList = {wfl,wfl};
             obj.MainAwg.SamplingRate = [obj.SamplingRateAwg,obj.SamplingRateAwg];
             obj.MainAwg.TriggerSource = ["External","External"];
-            obj.MainAwg.TriggerDelay = [130.775e-9,0];
+            obj.MainAwg.TriggerDelay = [2.101e-7,0]; %as of july 14th 2026
             obj.MainAwg.IsOutput = [true,true];
             obj.MainAwg.OutputMode = ["Normal","Normal"];
             obj.MainAwg.OutputLoad = ["Infinity","Infinity"];
@@ -301,7 +301,7 @@ classdef KpPredistortion < handle
                 obj.DelayFunc{chIdx} = @(f) round(slmeval(f,slme));
             end
             pause(1)
-            close all
+            % close all
         end
 
         function getKpModData(obj,V0)

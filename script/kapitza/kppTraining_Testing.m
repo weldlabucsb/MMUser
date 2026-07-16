@@ -20,6 +20,7 @@ kpp.AlphaListOverride=linspace(8, 60, 25);
 kpp.FrequencyListOverride=[2.4e6, 1.2e6];
 % kpp.FrequencyListOverride=linspace(100e3, 2.4e6, 10); %usual fmod list
 kpp.IsUseCorrection = 1;
+kpp.IsUseGenDatabase = 0; %Actually don't thinnk this does anything
 
 %%
 % V0 = 10;
@@ -54,11 +55,15 @@ kpp.IsUseCorrection = 1;
 % kpp.getKpModData(V0);
 
 
-kpp.TrainTanhRamp(0, 10, 10e-3);
+% kpp.TrainTanhRamp(0, 10, 10e-3);
 
 %%
 % kpp.TrainModWaveform(10, 300e3, 0.5);
 % kpp.TrainModWaveform(90, 300e3, 40); 
+   kpp.ErrorThreshold  = 0.001;   % Acceptable average RMSE (e.g., 10 mV)
+
+kpp.TrainModWaveform(150, 500e3, 1); %Currently the find 
+   kpp.ErrorThreshold  = 0.01;   % Acceptable average RMSE (e.g., 10 mV)
 kpp.TrainModWaveform(150, 500e3, 1); %Currently the find 
 
 

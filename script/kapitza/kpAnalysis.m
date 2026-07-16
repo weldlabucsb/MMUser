@@ -2,16 +2,19 @@ close all
 %% Load Trial and get parameters
 % trialNumber = [8945,8946,8948];
 %trialNumber = [9108,9109,9110]; % Inverted
-trialNumber = [9117]; % Non-inverted
+trialNumber = 9892; % inverted, 2ms mod, 10Er
+refTrialNumber = 9887;
+%trialNumber = [9117]; % Non-inverted
 %trialNumber=9108
 % trialNumber = 9144;
 %trialNumber = 9249;
 %trialNumber = 9402; %non-inverted, 1ms
-outputFolder = 'B:\__Lab Member Folders\Nicole\Lithium\9117noninvertednorm';
+outputFolder = 'B:\__Lab Member Folders\Nicole\Lithium\newpd';
 mkdir(outputFolder)
 nTrial = numel(trialNumber);
+display(trialNumber);
 % refTrialNumber = 8949;
-refTrialNumber = 9107;
+%refTrialNumber = 9107;
 % refTrialNumber = 9142;
 %refTrialNumber = 9189; 
 %refTrialNumber=9403; %non-inverted
@@ -23,9 +26,9 @@ laser = Laser(wavelength = 1064e-9,power = 1);
 ol = OpticalLattice(atom,laser);
 ol.DepthSpec = V0 * ol.RecoilEnergy;
 f0 = ol.HarmonicFrequency;
-isNormalize =true;
+isNormalize =false;
 metricName = "IPR";
-yCenter = 325 ; % previously 325, width of 10? 456
+yCenter = 326 ; % previously 325, width of 10? bec center here 456 - 120 (ROI y1 = 120; this is zero pt)
 windowWidth = 10;
 numberWindow = yCenter - windowWidth:yCenter + windowWidth;
 
