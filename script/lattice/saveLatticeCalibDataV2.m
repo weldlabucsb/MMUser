@@ -25,8 +25,8 @@ KP2Pd2Keysight = slmengine(KP2Pd,V, 'plot', 'on', 'increasing', 'on');
 
 
 %% Depth to Pd
-trialNumberKP1Kd = 9617;
-trialNumberKP2Kd = 9618;
+trialNumberKP1Kd = 9983;
+trialNumberKP2Kd = 9985;
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k = becExp.KapitzaDirac.DepthOverAmplitude;
@@ -44,11 +44,11 @@ KP2Pd2Depth = @(v) (v - off) * k; %new function to handle am spec calcs etc.
 addpath('B:\_Li\Machine Code\LatticeCode\');
 
 % =========== User Settings ============
-trialNumberKP1Am = 9922; 
-trialNumberKP2Am = 9926; 
+trialNumberKP1Am = 9988; 
+trialNumberKP2Am = 9990; 
 
-amSpecFreqKP1 = 770.5;    %kHz
-amSpecFreqKP2 = 870;      %kHz
+amSpecFreqKP1 = 642.5;    %kHz
+amSpecFreqKP2 = 1087.5;      %kHz
 
 
 % --- KP1 Processing ---

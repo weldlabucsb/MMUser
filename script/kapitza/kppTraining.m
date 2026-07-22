@@ -13,7 +13,7 @@ pause(0.5);
 kpp.DelayTimeEstimated = [2.8,2.9]*1e-6;
 kpp.measureDelay
 kpp.IsUseCorrection=1;
-kpp.CorrFactor = [0.98177522862, 0.91853587926];
+kpp.CorrFactor = [1.009508, 1.112248];
 kpp.IsUseGenDatabase=0;
 
 
@@ -32,10 +32,15 @@ kpp.RampTime=10e-3;
 kpp.getKpRampData(V0);
 kpp.getKpModData(V0);
 
+%% Train Ramp for Bandmapping
+kpp.RampTime=400e-3;
+kpp.getKpRampData(V0);
+kpp.RampTime=10e-3;
+
 %% Retrain Bad Runs
 V0=10;
 kpp.IsOverride=true;  % 1= using alpha & freq override list   0 = using phase diagram params
-kpp.AlphaListOverride=54.2222;
+kpp.AlphaListOverride=60;
 % kpp.FrequencyListOverride=[100e3, 2.4e6, 10];
 kpp.FrequencyListOverride=2.4e6;
 kpp.getKpModData(V0);

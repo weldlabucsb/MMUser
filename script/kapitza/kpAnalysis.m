@@ -1,13 +1,13 @@
 close all
 %% Load Trial and get parameters
 % trialNumber = [8945,8946,8948];
-%trialNumber = [9108,9109,9110]; % Inverted
-trialNumber = 9892; % inverted, 2ms mod, 10Er
-refTrialNumber = 9887;
+% trialNumber = [9108,9109,9110]; % Inverted
+trialNumber = 9992; % inverted, 2ms mod, 10Er
+% refTrialNumber = 9994;
 %trialNumber = [9117]; % Non-inverted
-%trialNumber=9108
+% trialNumber=9108
 % trialNumber = 9144;
-%trialNumber = 9249;
+% trialNumber = 9249;
 %trialNumber = 9402; %non-inverted, 1ms
 outputFolder = 'B:\__Lab Member Folders\Nicole\Lithium\newpd';
 mkdir(outputFolder)
@@ -27,7 +27,7 @@ ol = OpticalLattice(atom,laser);
 ol.DepthSpec = V0 * ol.RecoilEnergy;
 f0 = ol.HarmonicFrequency;
 isNormalize =false;
-metricName = "IPR";
+metricName = "StdDev";
 yCenter = 326 ; % previously 325, width of 10? bec center here 456 - 120 (ROI y1 = 120; this is zero pt)
 windowWidth = 10;
 numberWindow = yCenter - windowWidth:yCenter + windowWidth;
@@ -45,6 +45,8 @@ switch metricName
         metric0 = computeCentralAtomNumberFraction(adData,numberWindow);
     case "AtomNumberFraction2"
         metric0 = computeCentralAtomNumberFraction2(adData,numberWindow);
+    case "StdDev"
+            metric0 = computeStDev(adData, 4e-6);
 end
 [alpha0,metric0,metricError] = computeAveErr(...
     becExp.ScannedVariableList(1,:), ...
@@ -87,6 +89,9 @@ for ii = 1:nTrial
         case "AtomNumberFraction2"
             metric{ii} = computeCentralAtomNumberFraction2(adData,numberWindow);
             cbStr = "Central/Tail";
+        case "StdDev"
+            metric{ii} = computeStDev(adData, 4e-6);
+            cbStr = "StdDev";
     end
     if isNormalize
         metric{ii} = metric{ii}./repmat(metric0(:).',numel(f),1);
@@ -214,4 +219,22 @@ sz(1) = numel(wd);
 fracData = reshape(fracData,sz);
 frac = squeeze(sum(fracData,1));
 frac = frac./(1-frac);
+end
+
+function width = computeStDev(adData,px)
+onedData = squeeze(sum(adData,2));
+onedData=onedData./sum(onedData,1);
+counts=size(onedData,2);
+pos=px*(1:length(onedData));
+% size(pos)
+meanpos=sum(repmat(pos',1, counts) .*onedData,1)./sum(onedData,1);
+% size(repmat(pos',1, counts))
+% size(onedData)
+% size(sum(onedData, 1));
+var=sum((repmat(pos',1, counts)-meanpos).^2.*onedData,1)./sum(onedData,1);
+size(abs(var))
+width=sqrt(squeeze((abs(var))));
+size(width);
+min(var, [],'all')
+max(var, [], 'all')
 end

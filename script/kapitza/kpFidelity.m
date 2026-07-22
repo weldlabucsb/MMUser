@@ -1,14 +1,14 @@
 %% Parameters
 % trialNumber = [9117]; % Non-inverted
-trialNumber = [9144]; % inverted
+trialNumber = [9992]; % inverted
 load LatticeCalib.mat
 sName = "LatticeScope";
 tRange = [1,1.1]*1e-3;
 
 % trialNumberKP1Kd = 9114;
 % trialNumberKP2Kd = 9115;
-trialNumberKP1Kd = 9125;
-trialNumberKP2Kd = 9126;
+trialNumberKP1Kd = 9983;
+trialNumberKP2Kd = 9985;
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k(1) = becExp.KapitzaDirac.DepthOverAmplitude;
