@@ -19,7 +19,7 @@ dataPath = findLatestFile(folderPath);
 kpp = loadVar(dataPath,"kpp");
 kpp.IsInverted = isInverted;
 kpp.InitialDepth = initialDepth;
-kpp.IsRampUpModulation = false;
+kpp.IsRampUpModulation = true;
 wfl = kpp.predictKp(chIdx,V0,f,alpha,beta,nCycle,rampTime,isBm, 1, bmTime);
 end
 

@@ -5,8 +5,10 @@
 % trialNumberPd2Keysight = 9009; % 200% moglabs mod depth, spectrum
 % trialNumberPd2Keysight = 9000; % 200% moglabs mod depth, spectrum
 %trialNumberPd2Keysight = 9164; % 200% moglabs mod depth, spectrum
-trialNumberPd2Keysight = 9241; % 200% moglabs mod depth, spectrum
-trialNumberPd2Keysight = 9625; % 200% moglabs mod depth, spectrum
+% trialNumberPd2Keysight = 9241; % 200% moglabs mod depth, spectrum
+% trialNumberPd2Keysight = 9625; % 200% moglabs mod depth, spectrum
+trialNumberPd2Keysight = 10017; % 200% moglabs mod depth, spectrum
+
 
 sName = "LatticeScope";
 becExp = loadBecExp(trialNumberPd2Keysight);
@@ -25,8 +27,8 @@ KP2Pd2Keysight = slmengine(KP2Pd,V, 'plot', 'on', 'increasing', 'on');
 
 
 %% Depth to Pd
-trialNumberKP1Kd = 9983;
-trialNumberKP2Kd = 9985;
+trialNumberKP1Kd = 10073;
+trialNumberKP2Kd = 10074;
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k = becExp.KapitzaDirac.DepthOverAmplitude;
@@ -44,16 +46,16 @@ KP2Pd2Depth = @(v) (v - off) * k; %new function to handle am spec calcs etc.
 addpath('B:\_Li\Machine Code\LatticeCode\');
 
 % =========== User Settings ============
-trialNumberKP1Am = 9988; 
-trialNumberKP2Am = 9990; 
+trialNumberKP1Am = 10076; 
+trialNumberKP2Am = 10078; 
 
-amSpecFreqKP1 = 642.5;    %kHz
-amSpecFreqKP2 = 1087.5;      %kHz
+amSpecFreqKP1 = 825.5;    %kHz
+amSpecFreqKP2 = 799.5;      %kHz
 
 
 % --- KP1 Processing ---
 becExp1 = loadBecExp(trialNumberKP1Am);
-s1 = getValidScopeTrace(becExp1, sName); 
+s1 = getValidScopeTrace(becExp1, sName, 1); 
 amMeanVKp1 = mean(s1.Sample(1, 1:fix(end/5)));
 kdScopeDepthKP1 = KP1Pd2Depth(amMeanVKp1);
 
@@ -72,7 +74,7 @@ fprintf('-------- Loading KP2... --------\n');
 
 % --- KP2 Processing ---
 becExp2 = loadBecExp(trialNumberKP2Am);
-s2 = getValidScopeTrace(becExp2, sName); 
+s2 = getValidScopeTrace(becExp2, sName, 2); 
 amMeanVKp2 = mean(s2.Sample(2, 1:fix(end/5)));
 kdScopeDepthKP2 = KP2Pd2Depth(amMeanVKp2);
 
@@ -89,12 +91,12 @@ fprintf('Resulting correction factor for KP2 = %.6f\n',amKdFactorKP2);
 fprintf('---------- Complete. ----------\n');
 	
 %% Save
-%save("C:\Users\WOODHOUSE\Documents\MMUser\script\lattice\LatticeCalib.mat",...
-   % "KP1Pd2Keysight","KP2Pd2Keysight","KP1Depth2Pd","KP2Depth2Pd")
+save("C:\Users\WOODHOUSE\Documents\MMUser\script\lattice\LatticeCalib.mat",...
+   "KP1Pd2Keysight","KP2Pd2Keysight","KP1Depth2Pd","KP2Depth2Pd")
 	
 
 %% --- Helper Function ---
-function s = getValidScopeTrace(becExp, sName)
+function s = getValidScopeTrace(becExp, sName, Ch)
     runNum = 1;
     maxRuns = 30; % Added a limit to prevent infinite loops
     while runNum <= maxRuns
@@ -102,10 +104,10 @@ function s = getValidScopeTrace(becExp, sName)
  
         if exist(filePath, 'file')
             s = loadVar(filePath);
-            if mean(s.Sample(1, 1:fix(end/5))) >= 0.0007
+            if mean(s.Sample(Ch, 1:fix(end/5))) >= 0.0007
                 return; 
             end
-            warning('Run %d mistriggered (%.4fV), trying next run...', runNum, mean(s.Sample(1, 1:fix(end/5))));
+            warning('Run %d mistriggered (%.4fV), trying next run...', runNum, mean(s.Sample(Ch, 1:fix(end/5))));
         else
             %warning('File for run %d not found.', runNum);
         end

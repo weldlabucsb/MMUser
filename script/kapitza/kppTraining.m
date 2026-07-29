@@ -13,12 +13,13 @@ pause(0.5);
 kpp.DelayTimeEstimated = [2.8,2.9]*1e-6;
 kpp.measureDelay
 kpp.IsUseCorrection=1;
-kpp.CorrFactor = [1.009508, 1.112248];
+kpp.CorrFactor = [1.038649, 0.967435];
 kpp.IsUseGenDatabase=0;
+kpp.AlphaMaximum=30;
 
 
 kpp.IsOverride=false;  % 1= using alpha & freq override list   0 = using phase diagram params
-kpp.AlphaListOverride=linspace(8, 60, 25);
+kpp.AlphaListOverride=linspace(4, 30, 25);
 % kpp.FrequencyListOverride=[100e3, 2.4e6, 10];
 kpp.FrequencyListOverride=[2.4e6, 1.2e6];
 % kpp.FrequencyListOverride=linspace(100e3, 2.4e6, 10); %usual fmod list
@@ -26,21 +27,21 @@ kpp.FrequencyListOverride=[2.4e6, 1.2e6];
 %% Standard KPPhaseDiagram
 
 kpp.IsOverride = false;
-V0 = 10;
+V0 = 20;
 kpp.InitialDepth = 20;
 kpp.RampTime=10e-3;
 kpp.getKpRampData(V0);
 kpp.getKpModData(V0);
 
 %% Train Ramp for Bandmapping
-kpp.RampTime=400e-3;
-kpp.getKpRampData(V0);
+kpp.RampTime=400e-6;
+kpp.getKpRampData(V0, 1e5);
 kpp.RampTime=10e-3;
 
-%% Retrain Bad Runs
-V0=10;
+%% Retrain Bad Runs and save all final settings
+V0=20;
 kpp.IsOverride=true;  % 1= using alpha & freq override list   0 = using phase diagram params
-kpp.AlphaListOverride=60;
+kpp.AlphaListOverride=30;
 % kpp.FrequencyListOverride=[100e3, 2.4e6, 10];
 kpp.FrequencyListOverride=2.4e6;
 kpp.getKpModData(V0);

@@ -1,21 +1,32 @@
 %% Parameters
 % trialNumber = [9117]; % Non-inverted
-trialNumber = [9992]; % inverted
+trialNumber = [10080]; % inverted
+
 load LatticeCalib.mat
 sName = "LatticeScope";
 tRange = [1,1.1]*1e-3;
 
 % trialNumberKP1Kd = 9114;
 % trialNumberKP2Kd = 9115;
-trialNumberKP1Kd = 9983;
-trialNumberKP2Kd = 9985;
+trialNumberKP1Kd = 10073;
+trialNumberKP2Kd = 10074;
+isAmSpecCorrected = true;
+CorrFactor = [1.038649, 0.967435];
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k(1) = becExp.KapitzaDirac.DepthOverAmplitude;
 off(1) = mean(becExp.KapitzaDirac.PulseOffset);
+if isAmSpecCorrected
+    k(1) = 1/CorrFactor(1) * becExp.KapitzaDirac.DepthOverAmplitude;
+end
+
 becExp = loadBecExp(trialNumberKP2Kd);
 k(2) = becExp.KapitzaDirac.DepthOverAmplitude;
+if isAmSpecCorrected
+    k(2) = 1/CorrFactor(2) * becExp.KapitzaDirac.DepthOverAmplitude;
+end
 off(2) = mean(becExp.KapitzaDirac.PulseOffset);
+
 
 becExp = loadBecExp(trialNumber);
 beta = becExp.HardwareData.hw_KPModDepthBeta(1);

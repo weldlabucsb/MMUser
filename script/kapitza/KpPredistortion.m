@@ -2241,8 +2241,20 @@ classdef KpPredistortion < handle
                 else
                     VRange = kdCalib((alpha + 1) * V0) * 1.1;
                 end
-                obj.Scope.VerticalRange(chIdx) = VRange;
-                obj.Scope.VerticalOffset(chIdx) = -VRange/2 ;
+                % obj.Scope.VerticalRange(chIdx) = VRange;
+                % obj.Scope.VerticalOffset(chIdx) = -VRange/2 ; %Commented
+                % out due to issues with variations of values when scope
+                % settings are changed
+    
+                % following code added to keep scope range constant for
+                % training
+                if chIdx ==1
+                    obj.Scope.VerticalRange(chIdx) = 1.12;
+                    obj.Scope.VerticalOffset(chIdx) = -0.4 ;
+                else
+                    obj.Scope.VerticalRange(chIdx) = 2.2;
+                    obj.Scope.VerticalOffset(chIdx) = -0.8 ;
+                end
             end
             obj.Scope.set
             obj.Scope.startFromEdge
