@@ -2,8 +2,8 @@ close all
 %% Load Trial and get parameters
 % trialNumber = [8945,8946,8948];
 % trialNumber = [9108,9109,9110]; % Inverted
-trialNumber = 10082; % inverted, 2ms mod, 10Er
-refTrialNumber = 10081;
+trialNumber = 10104; % inverted, 2ms mod, 10Er
+refTrialNumber = 10105;
 %trialNumber = [9117]; % Non-inverted
 % trialNumber=9108
 % trialNumber = 9144;
@@ -26,8 +26,8 @@ laser = Laser(wavelength = 1064e-9,power = 1);
 ol = OpticalLattice(atom,laser);
 ol.DepthSpec = V0 * ol.RecoilEnergy;
 f0 = ol.HarmonicFrequency;
-isNormalize =false;
-metricName = "IPR";
+isNormalize = false;
+metricName = "StdDev2";
 yCenter = 325 ; % previously 325, width of 10? bec center here 456 - 120 (ROI y1 = 120; this is zero pt)
 windowWidth = 10;
 numberWindow = yCenter - windowWidth:yCenter + windowWidth;
@@ -65,8 +65,9 @@ render
 
 %% Compute theoretical boundaries
 alphaTheory = linspace(min(alpha0),max(alpha0),1000) * beta;
+boundalphaTheory = linspace(max(beta*min(alpha0),250/139+1e-9),beta*max(alpha0),1000);
 b1 = kpClassicalBoundary(alphaTheory,1);
-b2 = kpClassicalBoundary(alphaTheory,2);
+b2 = kpClassicalBoundary(boundalphaTheory,2);
 b3 = kpClassicalBoundary(alphaTheory,3);
 
 %% Analyze trials
@@ -117,7 +118,7 @@ for ii = 1:nTrial
     hold on
     if isInverted
         plot(alphaTheory,b1,'--','LineWidth',1,'Color','w')
-        plot(alphaTheory,b2,'--','LineWidth',1,'Color','w')
+        plot(boundalphaTheory,b2,'--','LineWidth',1,'Color','w')
     else
         plot(alphaTheory,b3,'--','LineWidth',1,'Color','w')
     end
@@ -141,7 +142,7 @@ render
 hold on
 if isInverted
     plot(alphaTheory,b1,'--','LineWidth',1,'Color','w')
-    plot(alphaTheory,b2,'--','LineWidth',1,'Color','w')
+    plot(boundalphaTheory,b2,'--','LineWidth',1,'Color','w')
 else
     plot(alphaTheory,b3,'--','LineWidth',1,'Color','w')
 end
@@ -308,6 +309,7 @@ sortXTick = ax.XTick(idxAlpha);
 sortYTick = ax.YTick(idxOmega);
 % Interpolate physical alpha onto X pixel coordinates
 xPixTheory = interp1(sortAlpha, sortXTick, alphaTheory, 'linear', 'extrap');
+boundxPixTheory=interp1(sortAlpha, sortXTick, boundalphaTheory, 'linear', 'extrap');
 % Interpolate boundary values onto Y pixel coordinates
 yPixB1 = interp1(sortOmega, sortYTick, b1, 'linear', 'extrap');
 yPixB2 = interp1(sortOmega, sortYTick, b2, 'linear', 'extrap');
@@ -315,7 +317,7 @@ yPixB3 = interp1(sortOmega, sortYTick, b3, 'linear', 'extrap');
 % Plot using the transformed pixel coordinates
 if isInverted
     plot(xPixTheory, yPixB1, '--', 'LineWidth', 0.75, 'Color', [1 1 1 0.5])
-    plot(xPixTheory, yPixB2, '--', 'LineWidth', 0.75, 'Color', [1 1 1 0.5])
+    plot(boundxPixTheory, yPixB2, '--', 'LineWidth', 0.75, 'Color', [1 1 1 0.5])
 else
     plot(xPixTheory, yPixB3, '--', 'LineWidth', 0.75, 'Color', [1 1 1 0.5])
 end

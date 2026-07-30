@@ -9,7 +9,6 @@
 % trialNumberPd2Keysight = 9625; % 200% moglabs mod depth, spectrum
 trialNumberPd2Keysight = 10017; % 200% moglabs mod depth, spectrum
 
-
 sName = "LatticeScope";
 becExp = loadBecExp(trialNumberPd2Keysight);
 s = loadVar(fullfile(becExp.HardwareLogPath,becExp.DataPrefix + "_" + num2str(1)) + "_" + sName + ".mat");
@@ -27,8 +26,8 @@ KP2Pd2Keysight = slmengine(KP2Pd,V, 'plot', 'on', 'increasing', 'on');
 
 
 %% Depth to Pd
-trialNumberKP1Kd = 10073;
-trialNumberKP2Kd = 10074;
+trialNumberKP1Kd = 10114;
+trialNumberKP2Kd = 10115;
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k = becExp.KapitzaDirac.DepthOverAmplitude;
@@ -46,18 +45,20 @@ KP2Pd2Depth = @(v) (v - off) * k; %new function to handle am spec calcs etc.
 addpath('B:\_Li\Machine Code\LatticeCode\');
 
 % =========== User Settings ============
-trialNumberKP1Am = 10076; 
-trialNumberKP2Am = 10078; 
+trialNumberKP1Am = 10094; 
+trialNumberKP2Am = 10095; 
 
-amSpecFreqKP1 = 825.5;    %kHz
-amSpecFreqKP2 = 799.5;      %kHz
+amSpecFreqKP1 = 620;    %kHz
+amSpecFreqKP2 = 1018;      %kHz
 
 
 % --- KP1 Processing ---
 becExp1 = loadBecExp(trialNumberKP1Am);
-s1 = getValidScopeTrace(becExp1, sName, 1); 
-amMeanVKp1 = mean(s1.Sample(1, 1:fix(end/5)));
+[amMeanVKp1, validCount1] = getAverageValidScopeVoltage(becExp1, sName, 1); 
 kdScopeDepthKP1 = KP1Pd2Depth(amMeanVKp1);
+%s1 = getValidScopeTrace(becExp1, sName, 1);        %old method
+%amMeanVKp1 = mean(s1.Sample(1, 1:fix(end/5)));
+%kdScopeDepthKP1 = KP1Pd2Depth(amMeanVKp1);
 
 minDepth1 = becExp1.HardwareData.hw_KP1RampDepthSpec(1) - 25;
 maxDepth1 = becExp1.HardwareData.hw_KP1RampDepthSpec(1) + 25;
@@ -66,17 +67,21 @@ amSpecDepthKP1 = fzero(errorFunction1, [minDepth1, maxDepth1]);
 amKdFactorKP1 = amSpecDepthKP1 / kdScopeDepthKP1 ;
 
 fprintf('-------- KP1 Results --------\n');
+fprintf('Averaged %d valid traces.\n', validCount1);
 fprintf('Closest match for f=%.0f kHz is %.4f Er\n', amSpecFreqKP1, amSpecDepthKP1);
 fprintf('Mean voltage of %.4fV gives %.4f Er using KD.\n', ...
     amMeanVKp1, kdScopeDepthKP1);
 fprintf('Resulting correction factor for KP1 = %.6f\n\n', amKdFactorKP1);
+
 fprintf('-------- Loading KP2... --------\n');
 
 % --- KP2 Processing ---
 becExp2 = loadBecExp(trialNumberKP2Am);
-s2 = getValidScopeTrace(becExp2, sName, 2); 
-amMeanVKp2 = mean(s2.Sample(2, 1:fix(end/5)));
+[amMeanVKp2, validCount2] = getAverageValidScopeVoltage(becExp2, sName, 1); % the last entry needs to be 2 for older runs (pre-july 29th)
 kdScopeDepthKP2 = KP2Pd2Depth(amMeanVKp2);
+%s2 = getValidScopeTrace(becExp2, sName, 2); 
+%amMeanVKp2 = mean(s2.Sample(2, 1:fix(end/5)));
+%kdScopeDepthKP2 = KP2Pd2Depth(amMeanVKp2);
 
 initialDepthGuess2 = becExp2.HardwareData.hw_KP1RampDepthSpec(1); 
 errorFunction2 = @(depth) findTransitionFrequency_V2(depth, 1, 3, 0) - amSpecFreqKP2; 
@@ -84,6 +89,7 @@ amSpecDepthKP2 = fzero(errorFunction2, initialDepthGuess2);
 amKdFactorKP2 = amSpecDepthKP2 / kdScopeDepthKP2  ;
 
 fprintf('---------- KP2 Results ----------\n');
+fprintf('Averaged %d valid traces.\n', validCount2);
 fprintf('Closest match for f=%.0f kHz is %.4f Er\n', amSpecFreqKP2, amSpecDepthKP2);
 fprintf('Mean voltage of %.4fV gives %.4f Er using KD. \n', ...
     amMeanVKp2, kdScopeDepthKP2);
@@ -91,11 +97,43 @@ fprintf('Resulting correction factor for KP2 = %.6f\n',amKdFactorKP2);
 fprintf('---------- Complete. ----------\n');
 	
 %% Save
-save("C:\Users\WOODHOUSE\Documents\MMUser\script\lattice\LatticeCalib.mat",...
-   "KP1Pd2Keysight","KP2Pd2Keysight","KP1Depth2Pd","KP2Depth2Pd")
+%save("C:\Users\WOODHOUSE\Documents\MMUser\script\lattice\LatticeCalib.mat",...
+ %  "KP1Pd2Keysight","KP2Pd2Keysight","KP1Depth2Pd","KP2Depth2Pd")
 	
+%% --- Helper Function --- (new version, takes the avg of traces as long as not mistriggered)
+function [avgMeanVoltage, validCount] = getAverageValidScopeVoltage(becExp, sName, Ch)
+    runNum = 1;
+    maxRuns = 40; 
+    validMeans = []; % Array to store mean voltages of non-mistriggered runs
 
-%% --- Helper Function ---
+    while runNum <= maxRuns
+        filePath = fullfile(becExp.HardwareLogPath, becExp.DataPrefix + "_" + num2str(runNum) + "_" + sName + ".mat");
+ 
+        if exist(filePath, 'file')
+            s = loadVar(filePath);
+            
+            % just taking the first segment (first 1/5th)
+            traceSegment = s.Sample(Ch, 1:fix(end/5));
+            currentMean = mean(traceSegment);
+            
+            if currentMean >= 0.0007
+                validMeans(end + 1) = currentMean; %#ok<AGROW>
+            else
+                warning('Run %d mistriggered (%.4fV), skipping...', runNum, currentMean);
+            end
+        end
+        runNum = runNum + 1;
+    end
+
+    validCount = length(validMeans);
+    if validCount > 0
+        % Calculate the overall average from the collected segment means
+        avgMeanVoltage = mean(validMeans);
+    else
+        error('Could not find any valid scope traces within %d runs.', maxRuns);
+    end
+end
+%% --- Helper Function --- (old version which assumed mean V was consistent across runs. really, scope induced noise causes ~10mV jumps)
 function s = getValidScopeTrace(becExp, sName, Ch)
     runNum = 1;
     maxRuns = 30; % Added a limit to prevent infinite loops
