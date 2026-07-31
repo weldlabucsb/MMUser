@@ -56,13 +56,22 @@ psi = (sqrt(2*pi*sigma^2)*(1+1i*hbar*tExp/2/M/sigma^2))^(-1/2) * ...
     exp(-(x).^2/4/sigma^2/(1+1i*hbar*tExp/2/M/sigma^2)) .* phi;
 ic.WaveFunction = psi;
 
+%%filename = 'init_state.h5';
+%%dataset_real = '/REAL';
+%%dataset_imag = '/IMAG';
+%%h5create(filename, dataset_real, size(real(psi)));
+%%h5create(filename, dataset_imag, size(imag(psi)));
+
+%%h5write(filename, dataset_real, real(psi));
+%%h5write(filename, dataset_imag, imag(psi));
+
 %% set modulation
-modTimeAll = 100e-6;
-nGrid = 5;
+modTimeAll = 10e-6;
+nGrid = 10;
 modFreqList = linspace(100e3,2.4e6,nGrid);
 modAmpList = linspace(2,30,nGrid);
-% modAmpList = 27.1111;
-% modFreqList = 2.4e6;
+%modAmpList = 30;
+%modFreqList = 2.4e6;
 
 [modAmpList,modFreqList] = meshgrid(modAmpList,modFreqList);
 modTime = ceil(modTimeAll.*modFreqList)./modFreqList;
@@ -118,7 +127,8 @@ ol = OpticalLattice(se.Atom,se.Laser{1});
 f0 = ol.HarmonicFrequency;
 modFreq = zeros(1,se.NCompletedRun);
 modAmp = zeros(1,se.NCompletedRun);
-metricMethod = "IPRBlur";
+%metricMethod = "IPRBlur";
+metricMethod = "StandardDeviation";
 dx = se.SimRun(1).SpaceStep;
 windowSize = round(5e-6/dx);
 % se.showSpaceTime
@@ -128,6 +138,20 @@ for ii = 1:se.NRun
     wff = wff ./ sqrt(sum(abs(wff).^2,2));
     modFreq(ii) = se.LatticeModulation{ii}.WaveformOrigin{1}.Frequency;
     modAmp(ii) = se.LatticeModulation{ii}.WaveformOrigin{1}.Amplitude / 2;
+    %fprintf('ii: %f\n', ii)
+    %fprintf('Modfreq: %f\n', modFreq(ii))
+    %fprintf('Modamp: %f\n', modAmp(ii))
+    % Generate a unique filename for each run (e.g., wf_001.h5, wf_002.h5, ...)
+    filename = sprintf('wf_%03d.h5', ii);
+    
+    dataset_real = '/REAL';
+    dataset_imag = '/IMAG';
+    
+    h5create(filename, dataset_real, size(real(wff)));
+    h5create(filename, dataset_imag, size(imag(wff)));
+    
+    h5write(filename, dataset_real, real(wff));
+    h5write(filename, dataset_imag, imag(wff));
 
     switch metricMethod
         case "IPR"
@@ -139,6 +163,13 @@ for ii = 1:se.NRun
             metric(ii) = sum(abs(smoothedData).^2,2);
         case "Correlation"
             metric(ii) = ((abs(wff).^2) * (abs(wfi).^2));
+        case "StandardDeviation"
+            P = abs(wff).^2;
+            N = size(wff, 2);
+            x = 1:N;
+            
+            mean_x = sum(x .* P, 2);
+            metric(ii) = sum(P .* (x - mean_x).^2, 2);
     end
     % nModCycle = round(se.SimRun(ii).TotalTime * modFreq(ii));
     % tList = se.TimeStep * se.AveragePeriod:se.TimeStep * se.AveragePeriod:nModCycle/modFreq(ii);
