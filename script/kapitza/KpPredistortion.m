@@ -1487,6 +1487,8 @@ classdef KpPredistortion < handle
             controlWfl = WaveformList("1",waveformOrigin={controlWf},samplingRate=sr);
         end
 
+        
+
         function [controlWfl,targetWfl,isExact] = predictSineMod(obj,chIdx,V0,f,ModDepth,nCycle,laserPower,isDc,phi)
             % Predict control waveform from KP parameters
             [~,isExact,~,~] = obj.findSineModData(chIdx,V0,f,ModDepth);
@@ -2547,7 +2549,7 @@ classdef KpPredistortion < handle
             end
                         if obj.IsGuessUsingOldData && any(~isExact)
                             for chIdx = 1:obj.NChannel
-                                [controlWfl{chIdx},targetWfl,~] = obj.predictKpMod(...
+                                [controlWfl{chIdx},targetWfl,~] = obj.predictKpMod(...%%Probably breaks code here
                                     chIdx,...
                                     MeanDepth,...
                                     ModFrequency,...
@@ -2656,6 +2658,162 @@ classdef KpPredistortion < handle
             obj.IsTraining = false;
             obj.saveObj
             obj.setHardware
+        end
+
+        function controlWfl=getRamp(obj, chIdx, Vinit, V0, RampTime, sr)
+
+
+            if nargin<6
+                sr=obj.SamplingRateAwg;
+            end
+            isExact = false;
+            duration = RampTime;
+            % targetWfl = obj.getKpRampTarget(chIdx,Vfinal,alpha,beta, duration); %Why do I need this? Just want to retrieve the waveform that's been trained.
+            targetWfl= obj.getTanhRampTarget(chIdx,Vinit, V0, duration);
+            targetWf = targetWfl.WaveformOrigin{1};
+            tList = targetWf.StartTime : targetWf.TimeStep : targetWf.EndTime;
+            
+            %ILC method here, not gonna be adding different methods
+                                nCut = 2500;
+                tList = targetWf.StartTime :(1/sr) : targetWf.EndTime;
+                % [controlVoltage,isExact] = obj.findKpRampData(chIdx,V0,alpha,beta,obj.IsInverted,targetDepth, rampTime);
+                [controlVoltage,isExact] = obj.findTanhRampData(chIdx,Vinit,V0,RampTime);
+                controlVoltage = resample(controlVoltage,sr,obj.SamplingRateRampSave);
+                controlVoltage(1:nCut) = repmat(mean(controlVoltage(nCut+1:nCut*2)),1,nCut);
+                controlVoltage(end-nCut+1:end) = repmat(mean(controlVoltage(end-nCut*2+1:end-nCut)),1,nCut);
+                controlVoltage = controlVoltage(1:numel(tList));
+                controlWf = InterpolatedWaveform(duration = range(tList),samplingRate=sr);
+                controlWf.SampleData = controlVoltage;
+                controlWf.TimeData = tList;
+                targetWfl.WaveformOrigin{1}.Duration = tList(end) - tList(1);
+            
+                      
+
+            controlWfl = WaveformList("1",waveformOrigin={controlWf},samplingRate=sr);
+        end
+
+        % function [controlWfl,targetWfl,isExact] = getMod(obj,chIdx,V0,f,alpha,beta,nCycle,laserPower,isDc,phi)
+        %     % Predict control waveform from KP parameters
+        %     % [~,isExact] = obj.findKpModData(chIdx,V0,f,alpha,beta);
+        %     % [~,isExact] = obj.findSineModData(chIdx,V0,f,alpha,beta);
+        %     isExact=0;
+        %     sr = obj.SamplingRateAwg;
+        %     duration = 1/f * nCycle;
+        %     targetWfl = obj.getKpModTarget(chIdx,V0,f,alpha,beta,nCycle);
+        %     targetWf = targetWfl.WaveformOrigin{1};
+        %     if nargin == 10
+        %         targetWf.Phase = phi;
+        %     end
+        %     if ~isreal(targetWf.Phase)
+        %         warning("Wrong target phase.")
+        %         targetWf.Phase = real(targetWf.Phase);
+        %     end
+        %     tList = targetWf.StartTime : targetWf.TimeStep : targetWf.EndTime;
+        %     if isDc
+        %         rampCalib = loadVar("LatticeCalib.mat","KP" + chIdx + "Pd2Keysight");
+        %         controlWfSampe = slmeval(targetWf.Sample,rampCalib);
+        %         controlWf = InterpolatedWaveform(duration = duration,samplingRate=sr);
+        %         controlWf.SampleData = controlWfSampe;
+        %         controlWf.TimeData = tList;
+        %     elseif obj.Method == "ILC"
+        %         nRs = 1;
+        %         % tCut = obj.IgnoredTime;
+        %         [controlVoltage,isExact] = obj.findKpModData(chIdx,V0,f,alpha,beta);
+        %         % controlVoltage = resample(controlVoltage,sr * nRs, sr);
+        %         sr = sr * nRs;
+        %         T = 1/f;
+        %         nIgnoredCycle = 1;
+        %         num_periods = floor(length(controlVoltage) / (T * sr));
+        %         L_analysis = round(num_periods * T * sr);
+        %         x_trunc = controlVoltage(1:L_analysis);
+        %         t_orig = 0:1/sr:numel(controlVoltage)/sr*2;
+        %         t_orig = t_orig(1:numel(controlVoltage));
+        %         t_trunc = t_orig(1:L_analysis);
+        %         sPerCycle = round(T * sr);
+        %         x_trunc = x_trunc(sPerCycle * nIgnoredCycle + 1:end-sPerCycle * nIgnoredCycle);
+        %         t_trunc = t_trunc(sPerCycle * nIgnoredCycle + 1:end-sPerCycle * nIgnoredCycle);
+        %         L_analysis = numel(x_trunc);
+        % 
+        %         % Define how many harmonics to extract (up to Nyquist)
+        %         % max_k = floor((sr/2) / f); % Divided the number of orders by ten to save time
+        %         max_k = 40;
+        %         ck = zeros(max_k + 1, 1); % Store complex coefficients
+        % 
+        %         for k = 0:max_k
+        %             % Create the complex exponential basis function for this harmonic
+        %             basis = exp(-1j * 2 * pi * k * f * t_trunc);
+        % 
+        %             % Project the signal onto the basis (The Discrete Fourier Integral)
+        %             % This is the manual equivalent of the FFT at a specific frequency
+        %             ck(k+1) = (1/L_analysis) * sum(x_trunc .* basis);
+        %         end
+        % 
+        %         %% 3. Reconstruction for New Duration
+        %         % tic;
+        %         new_duration = (nCycle+2 * nIgnoredCycle) / f;
+        %         t_new = (0:1/sr:new_duration-1/sr)';
+        %         reconstructed = zeros(size(t_new));
+        %         % Sum the harmonics (Synthesis)
+        %         % We skip k=0 (DC) in the loop and add it separately
+        %         tShift = mod(targetWf.Phase,2*pi) / 2 / pi * T;
+        %         t = t_new + tShift;
+        %         for k = 1:max_k
+        %             % We use 2 * real(ck * exp(jwt)) to account for negative frequencies
+        %             reconstructed = reconstructed + ...
+        %                 2 * real(ck(k+1) * exp(1j * 2 * pi * k * f * t));
+        %         end
+        % 
+        %         % kList = (1:max_k).';
+        %         % TT = exp(1j * 2 * pi * kList * f * t.');
+        %         % reconstructed = 2 * real(ck(2:max_k+1).' * TT).';
+        %         % toc;
+        % 
+        %         % Add the DC offset (k=0)
+        %         controlVoltage = reconstructed + real(ck(1));
+        %         controlVoltage = resample(controlVoltage,sr/nRs,sr);
+        %         sPerCycle = round(T * sr/nRs);
+        %         controlVoltage = controlVoltage(sPerCycle * nIgnoredCycle + 1:end-sPerCycle*nIgnoredCycle);
+        % 
+        % 
+        %         tList = targetWf.StartTime : targetWf.TimeStep : targetWf.EndTime * 2;
+        %         tList = tList(1:numel(controlVoltage));
+        %         controlWf = InterpolatedWaveform(duration = range(tList),samplingRate=sr);
+        %         controlWf.SampleData = controlVoltage;
+        %         controlWf.TimeData = tList;
+        %         targetWfl.WaveformOrigin{1}.Duration = tList(end) - tList(1);
+        %     else
+        %         controlWf = obj.predictAwg(chIdx,targetWf,laserPower);
+        %     end
+        %     controlWfl = WaveformList("1",waveformOrigin={controlWf},samplingRate=sr);
+        % end
+
+        function controlWfl=getRampandMod(obj, chIdx, MeanDepth, RampTime, ModFrequency, ModDepth, nCycle, Phi)
+            %Define a function to retrieve a waveform that ramps up the
+            %lattice from 0 to MeanDepths in Er, then adds on top a
+            %modulation
+
+          if nargin<9
+              Phi=0;
+          end
+
+
+            if nCycle > 0
+                % wflMod = obj.predictSineMod(chIdx,V0,f,alpha,beta,nCycle,1,false);
+                    wflMod = obj.predictSineMod(chIdx,MeanDepth,ModFrequency,ModDepth,nCycle,1,0,Phi);
+            end
+            wflRamp = obj.getRamp(chIdx,0, MeanDepth,RampTime);
+            if nCycle > 0
+                rampSample = wflRamp.Sample;
+                endControlVal = rampSample(end);
+                tTriansient = obj.IgnoredTime * 2;
+                nS = tTriansient * obj.SamplingRateAwg;
+                sIdx = 1:nS;
+                wfMod = wflMod.WaveformOrigin{1};
+                controlWfl = WaveformList("c",waveformOrigin={wflRamp.WaveformOrigin{1},wfMod},samplingRate = obj.SamplingRateAwg);
+            else
+                
+                controlWfl = wflRamp;
+            end
         end
         
     end
