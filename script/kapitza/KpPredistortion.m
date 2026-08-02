@@ -46,7 +46,7 @@ classdef KpPredistortion < handle
         BmTime = 100e-6
         IsUseCorrection = 0 %Allows the use of a correction factor for the two lattices to account for differences between KD and AM Spec
         CorrFactor = [0.944, 1.25] % Guess for correction based on AM spectroscopy
-        IsUseGenDatabase = 1; %Argument to allow saving and retrieving from an alternative dataset that saves and retrieves from a dataset with arguments that depend not on phase diagram parameters but generic parameters regarding the ramptimes, start and stop values, modulation depths and frequencies, and so on.
+        IsUseGenDatabase = 0; %Argument to allow saving and retrieving from an alternative dataset that saves and retrieves from a dataset with arguments that depend not on phase diagram parameters but generic parameters regarding the ramptimes, start and stop values, modulation depths and frequencies, and so on.
 
     end
 
@@ -2297,6 +2297,33 @@ classdef KpPredistortion < handle
             % obj.Dataset(2).KpRampParameter(82:94)=[];
             % obj.Dataset(1).YRamp(82:94)=[];
             % obj.RampTime=10e-3;
+            obj.IsTraining=false;
+            obj.saveObj;
+
+        end
+
+        function ClearKpRampDataset(obj)
+            % for idx=1:2
+            %     datasetlength=length(obj.Dataset(idx).KpRampParameter);
+            %     A=cell2mat(obj.Dataset(idx).KpRampParameter);
+            %     for ii=1:datasetlength
+            %         clear Aset
+            %         Aset=squeeze(A(:, ii));
+            %         if length(Aset)<6
+            %             Aset=[Aset;obj.RampTime];
+            %             obj.Dataset(idx).KpRampParameter{ii}=Aset;
+            %         end
+            %     end
+            % end
+            % obj.Dataset(1).KpRampParameter(82:94)=[];
+            % obj.Dataset(1).YRamp(82:94)=[];
+            % obj.Dataset(2).KpRampParameter(82:94)=[];
+            % obj.Dataset(1).YRamp(82:94)=[];
+            % obj.RampTime=10e-3;
+            for ii=1:2
+            obj.Dataset(ii).KpRampParameter={};
+            obj.Dataset(ii).YRamp={};
+            end
             obj.IsTraining=false;
             obj.saveObj;
 

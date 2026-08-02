@@ -2,8 +2,8 @@ close all
 %% Load Trial and get parameters
 % trialNumber = [8945,8946,8948];
 % trialNumber = [9108,9109,9110]; % Inverted
-trialNumber = 10104; % inverted, 2ms mod, 10Er
-refTrialNumber = 10105;
+trialNumber = 10123; % inverted, 2ms mod, 10Er
+refTrialNumber = 10122;
 %trialNumber = [9117]; % Non-inverted
 % trialNumber=9108
 % trialNumber = 9144;
@@ -20,7 +20,8 @@ display(trialNumber);
 %refTrialNumber=9403; %non-inverted
 becExp = loadBecExp(trialNumber); %prev loadBecExp(refTrialNumber)
 beta = becExp.HardwareData.hw_KPModDepthBeta(1);
-V0 = becExp.HardwareData.hw_KPDepthEr(1)
+V0 = becExp.HardwareData.hw_KPDepthEr(1);
+% V0=10; % To overwrite to check theory curves
 atom = getAtom("Lithium7");
 laser = Laser(wavelength = 1064e-9,power = 1);
 ol = OpticalLattice(atom,laser);
