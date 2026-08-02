@@ -13,9 +13,9 @@ pause(0.5);
 kpp.DelayTimeEstimated = [2.8,2.9]*1e-6;
 kpp.measureDelay
 kpp.IsUseCorrection=1;
-kpp.CorrFactor = [0.981579 , 0.965248];
+kpp.CorrFactor = [1.092076 , 0.984474];
 kpp.IsUseGenDatabase=0;
-kpp.AlphaMaximum=20; % this corresponds to the hw_alpha variable, which is beta dependent. 
+kpp.AlphaMaximum=60; % this corresponds to the hw_alpha variable, which is beta dependent. 
 
 
 kpp.IsOverride=false;  % 1= using alpha & freq override list   0 = using phase diagram params
@@ -29,25 +29,25 @@ kpp.FrequencyListOverride=[2.4e6, 1.2e6];
 %% Standard KPPhaseDiagram
 
 kpp.IsOverride = false;
-V0 = 30;
+V0 = 10;
 kpp.InitialDepth = 20;
 kpp.RampTime=10e-3;
 kpp.getKpRampData(V0);
-kpp.getKpModData(V0);
+% kpp.getKpModData(V0);
 
 %% Train Ramp for Bandmapping
-% kpp.RampTime=400e-6;
-% kpp.getKpRampData(V0, 1e5);
+kpp.RampTime=400e-6;
+kpp.getKpRampData(V0, 1e5);
 
 kpp.RampTime=10e-3; % setting ramp time back to 10ms
-
+kpp.UpdateKpRampDataset
 %% Retrain Bad Runs and save all final settings
-V0=30;
-kpp.IsOverride=true;  % 1= using alpha & freq override list   0 = using phase diagram params
-kpp.AlphaListOverride=20;
-% kpp.FrequencyListOverride=[100e3, 2.4e6, 10];
-kpp.FrequencyListOverride=2.4e6;
-kpp.getKpModData(V0);
+% V0=10;
+% kpp.IsOverride=true;  % 1= using alpha & freq override list   0 = using phase diagram params
+% kpp.AlphaListOverride=20;
+% % kpp.FrequencyListOverride=[100e3, 2.4e6, 10];
+% kpp.FrequencyListOverride=2.4e6;
+% kpp.getKpModData(V0);
 
 %% Try with overridden known waveforms
 
