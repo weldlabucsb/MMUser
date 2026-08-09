@@ -1,11 +1,13 @@
 folderPath = "B:\_Li\_LithiumData\HardwareLogs\KpPredistortionData";
 dataPath = findLatestFile(folderPath);
 kpp = loadVar(dataPath,"kpp");
+kpp.ClearGenDataset;
 % kpp.UpdateKpRampDataset; % (NEW) Used to modify kprampdataset parameters
 % to match new ramp settings. Only run once when trying to adjust it.
 kpp.RampTime = 10e-3;
+kpp.CorrFactor = [1.069390 , 1.065501];
 kpp.IsInverted = true;
-kpp.IsGuessUsingOldData = true; %somewhat out of date, code now determines if old data available
+kpp.IsGuessUsingOldData = false; %somewhat out of date, code now determines if old data available
 kpp.setHardware
 kpp.setHardware
 kpp.InitialDepth = 20;
@@ -23,50 +25,46 @@ kpp.IsUseCorrection = 1;
 kpp.IsUseGenDatabase = 0; %Actually don't thinnk this does anything
 
 %%
-% V0 = 10;
-% kpp.InitialDepth = 20;
-% kpp.RampTime=10e-3;
-% kpp.getKpRampData(V0);
-% kpp.getKpModData(V0);
 
 
-% V0 = 10;
-% kpp.InitialDepth = 20;
-% kpp.RampTime=1e-3;
-% kpp.IsOverride=false;
-% kpp.getKpRampData(V0, 1e4);
-% % kpp.getKpModData(V0);
 
-% V0 = 10;
-% kpp.RampTime=400e-6;
-% kpp.IsOverride=true;
-% kpp.getKpRampData(V0, 2.5e5);
-
-
-% V0 = 10;
-% kpp.RampTime=100e-6;
-% kpp.IsOverride=false;
-% kpp.getKpRampData(V0, 2.5e5, 1, 15);
-% 
-% V0 = 10;
-% kpp.InitialDepth = 20;
-% kpp.RampTime=10e-3;
-% kpp.getKpRampData(V0);
-% kpp.getKpModData(V0);
-
-
-% kpp.TrainTanhRamp(0, 10, 10e-3);
+kpp.TrainTanhRamp(0, 70, 10e-3);
 
 %%
 % kpp.TrainModWaveform(10, 300e3, 0.5);
 % kpp.TrainModWaveform(90, 300e3, 40); 
-   kpp.ErrorThreshold  = 0.001;   % Acceptable average RMSE (e.g., 10 mV)
-
-kpp.TrainModWaveform(150, 500e3, 1); %Currently the find 
    kpp.ErrorThreshold  = 0.01;   % Acceptable average RMSE (e.g., 10 mV)
-kpp.TrainModWaveform(150, 500e3, 1); %Currently the find 
+
+% kpp.TrainModWaveform(150, 500e3, 1); %Currently the find 
+%    kpp.ErrorThreshold  = 0.01;   % Acceptable average RMSE (e.g., 10 mV)
+% kpp.TrainModWaveform(150, 500e3, 1); %Currently the find 
 
 
+%% Train up to 10Er Modulation Depth difference, scanning slight variations of mean lattice depth, constant lattice depth of 
 
+MeanDepth=70;
+ScanRange=10; %Scan +/- above and below the target range for each lattice depth to scan for variations in mean lattice depth
+ScanStep=1; %Scan small variatios of 1 percent steps above and below the scan range
+ModDepth=30; %Mod depth of both lattices in Er;
+ModDepthList=30;
+
+DepthList=(MeanDepth-ScanRange):ScanStep:(MeanDepth+ScanRange);
+% DepthList=61:1:(MeanDepth+ScanRange);
+% DepthList=60;
+
+
+for ii=1:length(DepthList)
+    disp(kpp.CorrFactor);
+    which("LatticeCalib.mat")
+    kpp.TrainTanhRamp(0, DepthList(ii), 10e-3);
+    kpp.TrainTanhRamp(DepthList(ii), DepthList(ii), 4e-3);
+    for jj=1:length(ModDepthList)
+        kpp.TrainModWaveform(DepthList(ii), 2.4e6, ModDepthList(jj));
+    end
+end
+
+%% Close hardware connections
+
+clear all
 
 

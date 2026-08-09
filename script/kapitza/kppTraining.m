@@ -3,6 +3,9 @@ dataPath = findLatestFile(folderPath);
 kpp = loadVar(dataPath,"kpp");
 % kpp.UpdateKpRampDataset; % (NEW) Used to modify kprampdataset parameters
 % to match new ramp settings. Only run once when trying to adjust it.
+
+% kpp.ClearKpDataset; %Run if suspecting that incorrect waveforms are being
+% %retrieved. Should Use IsGuessUsingOldData=false
 kpp.RampTime = 10e-3;
 kpp.IsInverted = true;
 kpp.IsGuessUsingOldData = false; %somewhat out of date, code now determines if old data available
@@ -13,7 +16,7 @@ pause(0.5);
 kpp.DelayTimeEstimated = [2.8,2.9]*1e-6;
 kpp.measureDelay
 kpp.IsUseCorrection=1;
-kpp.CorrFactor = [1.092076 , 0.984474];
+kpp.CorrFactor = [1.069390 , 1.065501];
 kpp.IsUseGenDatabase=0;
 kpp.AlphaMaximum=60; % this corresponds to the hw_alpha variable, which is beta dependent. 
 
@@ -33,14 +36,15 @@ V0 = 10;
 kpp.InitialDepth = 20;
 kpp.RampTime=10e-3;
 kpp.getKpRampData(V0);
-% kpp.getKpModData(V0);
+kpp.getKpModData(V0);
 
 %% Train Ramp for Bandmapping
-kpp.RampTime=400e-6;
-kpp.getKpRampData(V0, 1e5);
 
-kpp.RampTime=10e-3; % setting ramp time back to 10ms
-kpp.UpdateKpRampDataset
+% kpp.RampTime=400e-6;
+% kpp.getKpRampData(V0, 1e5);
+% 
+% kpp.RampTime=10e-3; % setting ramp time back to 10ms
+% kpp.UpdateKpRampDataset
 %% Retrain Bad Runs and save all final settings
 % V0=10;
 % kpp.IsOverride=true;  % 1= using alpha & freq override list   0 = using phase diagram params

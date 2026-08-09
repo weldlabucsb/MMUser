@@ -7,7 +7,7 @@
 %trialNumberPd2Keysight = 9164; % 200% moglabs mod depth, spectrum
 % trialNumberPd2Keysight = 9241; % 200% moglabs mod depth, spectrum
 % trialNumberPd2Keysight = 9625; % 200% moglabs mod depth, spectrum
-trialNumberPd2Keysight = 10017; % 200% moglabs mod depth, spectrum
+trialNumberPd2Keysight = 10168; % 200% moglabs mod depth, spectrum, taken on august 3 2026
 
 sName = "LatticeScope";
 becExp = loadBecExp(trialNumberPd2Keysight);
@@ -26,8 +26,8 @@ KP2Pd2Keysight = slmengine(KP2Pd,V, 'plot', 'on', 'increasing', 'on');
 
 
 %% Depth to Pd
-trialNumberKP1Kd = 10114;
-trialNumberKP2Kd = 10115;
+trialNumberKP1Kd = 10253;
+trialNumberKP2Kd = 10254;
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k = becExp.KapitzaDirac.DepthOverAmplitude;
@@ -45,11 +45,11 @@ KP2Pd2Depth = @(v) (v - off) * k; %new function to handle am spec calcs etc.
 addpath('B:\_Li\Machine Code\LatticeCode\');
 
 % =========== User Settings ============
-trialNumberKP1Am = 10117; 
-trialNumberKP2Am = 10119; 
+trialNumberKP1Am = 10257;
+trialNumberKP2Am = 10259; 
 
-amSpecFreqKP1 = 666;    %kHz
-amSpecFreqKP2 = 1030;      %kHz
+amSpecFreqKP1 = 940;    %kHz 
+amSpecFreqKP2 = 973;      %kHz
 
 
 % --- KP1 Processing ---
@@ -60,8 +60,8 @@ kdScopeDepthKP1 = KP1Pd2Depth(amMeanVKp1);
 %amMeanVKp1 = mean(s1.Sample(1, 1:fix(end/5)));
 %kdScopeDepthKP1 = KP1Pd2Depth(amMeanVKp1);
 
-minDepth1 = becExp1.HardwareData.hw_KP1RampDepthSpec(1) - 25;
-maxDepth1 = becExp1.HardwareData.hw_KP1RampDepthSpec(1) + 25;
+minDepth1 = becExp1.HardwareData.hw_KP1RampDepthSpec(1) - 50;
+maxDepth1 = becExp1.HardwareData.hw_KP1RampDepthSpec(1) + 50;
 errorFunction1 = @(depth) findTransitionFrequency_V2(depth, 1, 3, 0) - amSpecFreqKP1; 
 amSpecDepthKP1 = fzero(errorFunction1, [minDepth1, maxDepth1]);
 amKdFactorKP1 = amSpecDepthKP1 / kdScopeDepthKP1 ;
@@ -98,7 +98,7 @@ fprintf('---------- Complete. ----------\n');
 	
 %% Save
 %save("C:\Users\WOODHOUSE\Documents\MMUser\script\lattice\LatticeCalib.mat",...
- %  "KP1Pd2Keysight","KP2Pd2Keysight","KP1Depth2Pd","KP2Depth2Pd")
+ % "KP1Pd2Keysight","KP2Pd2Keysight","KP1Depth2Pd","KP2Depth2Pd")
 	
 %% --- Helper Function --- (new version, takes the avg of traces as long as not mistriggered)
 function [avgMeanVoltage, validCount] = getAverageValidScopeVoltage(becExp, sName, Ch)

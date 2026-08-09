@@ -2,8 +2,8 @@ close all
 %% Load Trial and get parameters
 % trialNumber = [8945,8946,8948];
 % trialNumber = [9108,9109,9110]; % Inverted
-trialNumber = 10123; % inverted, 2ms mod, 10Er
-refTrialNumber = 10122;
+trialNumber = 10184; 
+refTrialNumber = 10177;
 %trialNumber = [9117]; % Non-inverted
 % trialNumber=9108
 % trialNumber = 9144;
@@ -28,14 +28,14 @@ ol = OpticalLattice(atom,laser);
 ol.DepthSpec = V0 * ol.RecoilEnergy;
 f0 = ol.HarmonicFrequency;
 isNormalize = false;
-metricName = "StdDev2";
+metricName = "AtomNumberFraction";
 yCenter = 325 ; % previously 325, width of 10? bec center here 456 - 120 (ROI y1 = 120; this is zero pt)
 windowWidth = 10;
 numberWindow = yCenter - windowWidth:yCenter + windowWidth;
 
 % new input params
 noiseFloor = 0; % for std dev v2; which includes baseline correction. this # sets the cutoff. any pts w/ density=(noiseFloor * peak density) set to 0
-cropRadiusY = 55; % this is for adMix plot. increasing this "zooms out". 
+cropRadiusY = 70; % this is for adMix plot. increasing this "zooms out". 
 
 %% Compute reference IPR
 becExp = loadBecExp(refTrialNumber);

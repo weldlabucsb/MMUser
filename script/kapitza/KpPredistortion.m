@@ -1173,6 +1173,7 @@ classdef KpPredistortion < handle
             % Get the target optical waveform for the given KP parameters
             calibName = "KP" + chIdx + "Depth2Pd";
             kdCalib = loadVar("LatticeCalib.mat",calibName);
+            which("LatticeCalib.mat")
             sr = obj.SamplingRateAwg;
             duration = 1/f * nCycle;
 
@@ -1669,8 +1670,9 @@ classdef KpPredistortion < handle
                 targetDepth = obj.getInitialDepthTarget(V0);
                 nCut = 2500;
                 tList = targetWf.StartTime :(1/sr) : targetWf.EndTime;
-                [controlVoltage,isExact, ~, success] = obj.findTanhRampData(chIdx,Vinit, V0,rampTime); %This is the line to change, need to work with new dataset
-                
+                [controlVoltage,isExact, idxval, success] = obj.findTanhRampData(chIdx,Vinit, V0,rampTime); %This is the line to change, need to work with new dataset
+                % disp(idxval)
+                % disp(success)
                 if success
 
                 controlVoltage = resample(controlVoltage,sr,obj.SamplingRateRampSave);
@@ -2070,7 +2072,7 @@ classdef KpPredistortion < handle
             v = [Vinit; V0; rampTime];
             mu = mean(A, 2);
             sig = std(A, 0, 2);
-            sig(sig==0) = mu(sig == 0);
+            sig(sig==0) = max(mu(sig == 0),1e-20); %Had to add the max value cause it breaks if both sig=0 and mu=0
             A_norm = (A - mu) ./ sig;
             v_norm = (v - mu) ./ sig;
             [~, runIdx] = min(vecnorm(A_norm - v_norm));
@@ -2273,13 +2275,47 @@ classdef KpPredistortion < handle
                 VRange = kdCalib(V0) * 1.2;
                 obj.Scope.VerticalRange(chIdx) = VRange;
                 obj.Scope.VerticalOffset(chIdx) = -VRange/2 ;
+
+
+                if chIdx ==1
+                    obj.Scope.VerticalRange(chIdx) = 1.12;
+                    obj.Scope.VerticalOffset(chIdx) = -0.4 ;
+                else
+                    obj.Scope.VerticalRange(chIdx) = 2.2;
+                    obj.Scope.VerticalOffset(chIdx) = -0.8 ;
+                end
             end
+
+            % following code added to keep scope range constant for
+                % training
+                
             obj.Scope.set
             obj.Scope.startFromEdge
             pause(0.5)
         end
 
-        
+        function getScopeSettings(obj)
+            %Displays scope settings 
+            %Function currently only written and tested with Siglent
+            %SDS2104x in mindl
+
+            %Run only if you have connected the Hardware with
+            %obj.setHardware already.
+            vobj=obj.Scope.VisaObj;
+            vrange1=writeread(vobj, "CHAN1:SCAL?")
+            vrange1=8*str2num(vrange1); %Scope specific conversion
+            voffset1=writeread(vobj, "CHAN1:OFFS?");
+            voffset1=str2num(voffset1);
+            
+            vrange2=writeread(vobj, "CHAN2:SCAL?")
+            vrange2=8*str2num(vrange2); %Scope specific conversion
+            voffset2=writeread(vobj, "CHAN2:OFFS?");
+            voffset2=str2num(voffset2);
+
+            disp(strcat("CH1 Vertical Range = ", num2str(vrange1),"; Vertical Offset = ", num2str(voffset1)));
+            disp(strcat("CH2 Vertical Range = ", num2str(vrange2),"; Vertical Offset = ", num2str(voffset2)));
+
+        end
 
         function UpdateKpRampDataset(obj)
             % for idx=1:2
@@ -2330,7 +2366,32 @@ classdef KpPredistortion < handle
             obj.saveObj;
 
         end
-        
+
+        function ClearGenDataset(obj)
+            
+            for ii=1:2
+            obj.Dataset(ii).TanhRampParameter={};
+            obj.Dataset(ii).TanhRamp={};
+            obj.Dataset(ii).SineModParameter={};
+            obj.Dataset(ii).SineMod={};
+            end
+            obj.IsTraining=false;
+            obj.saveObj;
+
+        end
+
+        function ClearKpDataset(obj)
+            for ii=1:2
+            obj.Dataset(ii).KpRampParameter={};
+            obj.Dataset(ii).YRamp={};
+            obj.Dataset(ii).KpParameter={};
+            obj.Dataset(ii).Y={};
+            end
+            obj.IsTraining=false;
+            obj.saveObj;
+
+        end
+
         function TrainTanhRamp(obj, InitVal, EndVal, RampTime, lowPassFreq, isPhaseFree, itercts)
             %Add params to fill the remaining waveforms
             if nargin<5
@@ -2687,37 +2748,37 @@ classdef KpPredistortion < handle
             obj.setHardware
         end
 
-        function controlWfl=getRamp(obj, chIdx, Vinit, V0, RampTime, sr)
-
-
-            if nargin<6
-                sr=obj.SamplingRateAwg;
-            end
-            isExact = false;
-            duration = RampTime;
-            % targetWfl = obj.getKpRampTarget(chIdx,Vfinal,alpha,beta, duration); %Why do I need this? Just want to retrieve the waveform that's been trained.
-            targetWfl= obj.getTanhRampTarget(chIdx,Vinit, V0, duration);
-            targetWf = targetWfl.WaveformOrigin{1};
-            tList = targetWf.StartTime : targetWf.TimeStep : targetWf.EndTime;
-            
-            %ILC method here, not gonna be adding different methods
-                                nCut = 2500;
-                tList = targetWf.StartTime :(1/sr) : targetWf.EndTime;
-                % [controlVoltage,isExact] = obj.findKpRampData(chIdx,V0,alpha,beta,obj.IsInverted,targetDepth, rampTime);
-                [controlVoltage,isExact] = obj.findTanhRampData(chIdx,Vinit,V0,RampTime);
-                controlVoltage = resample(controlVoltage,sr,obj.SamplingRateRampSave);
-                controlVoltage(1:nCut) = repmat(mean(controlVoltage(nCut+1:nCut*2)),1,nCut);
-                controlVoltage(end-nCut+1:end) = repmat(mean(controlVoltage(end-nCut*2+1:end-nCut)),1,nCut);
-                controlVoltage = controlVoltage(1:numel(tList));
-                controlWf = InterpolatedWaveform(duration = range(tList),samplingRate=sr);
-                controlWf.SampleData = controlVoltage;
-                controlWf.TimeData = tList;
-                targetWfl.WaveformOrigin{1}.Duration = tList(end) - tList(1);
-            
-                      
-
-            controlWfl = WaveformList("1",waveformOrigin={controlWf},samplingRate=sr);
-        end
+        % function controlWfl=getRamp(obj, chIdx, Vinit, V0, RampTime, sr)
+        %     %% Somehow doesn't work, don't trust.
+        % 
+        %     if nargin<6
+        %         sr=obj.SamplingRateAwg;
+        %     end
+        %     isExact = false;
+        %     duration = RampTime;
+        %     % targetWfl = obj.getKpRampTarget(chIdx,Vfinal,alpha,beta, duration); %Why do I need this? Just want to retrieve the waveform that's been trained.
+        %     targetWfl= obj.getTanhRampTarget(chIdx,Vinit, V0, duration);
+        %     targetWf = targetWfl.WaveformOrigin{1};
+        %     tList = targetWf.StartTime : targetWf.TimeStep : targetWf.EndTime;
+        % 
+        %     %ILC method here, not gonna be adding different methods
+        %                         nCut = 2500;
+        %         tList = targetWf.StartTime :(1/sr) : targetWf.EndTime;
+        %         % [controlVoltage,isExact] = obj.findKpRampData(chIdx,V0,alpha,beta,obj.IsInverted,targetDepth, rampTime);
+        %         [controlVoltage,isExact] = obj.findTanhRampData(chIdx,Vinit,V0,RampTime);
+        %         controlVoltage = resample(controlVoltage,sr,obj.SamplingRateRampSave);
+        %         controlVoltage(1:nCut) = repmat(mean(controlVoltage(nCut+1:nCut*2)),1,nCut);
+        %         controlVoltage(end-nCut+1:end) = repmat(mean(controlVoltage(end-nCut*2+1:end-nCut)),1,nCut);
+        %         controlVoltage = controlVoltage(1:numel(tList));
+        %         controlWf = InterpolatedWaveform(duration = range(tList),samplingRate=sr);
+        %         controlWf.SampleData = controlVoltage;
+        %         controlWf.TimeData = tList;
+        %         targetWfl.WaveformOrigin{1}.Duration = tList(end) - tList(1);
+        % 
+        % 
+        % 
+        %     controlWfl = WaveformList("1",waveformOrigin={controlWf},samplingRate=sr);
+        % end
 
         % function [controlWfl,targetWfl,isExact] = getMod(obj,chIdx,V0,f,alpha,beta,nCycle,laserPower,isDc,phi)
         %     % Predict control waveform from KP parameters
@@ -2819,7 +2880,7 @@ classdef KpPredistortion < handle
             %lattice from 0 to MeanDepths in Er, then adds on top a
             %modulation
 
-          if nargin<9
+          if nargin<8
               Phi=0;
           end
 
@@ -2828,7 +2889,7 @@ classdef KpPredistortion < handle
                 % wflMod = obj.predictSineMod(chIdx,V0,f,alpha,beta,nCycle,1,false);
                     wflMod = obj.predictSineMod(chIdx,MeanDepth,ModFrequency,ModDepth,nCycle,1,0,Phi);
             end
-            wflRamp = obj.getRamp(chIdx,0, MeanDepth,RampTime);
+            wflRamp = obj.predictTanhRamp(chIdx,0, MeanDepth, 1, 0, RampTime);%(chIdx,0, MeanDepth,RampTime);
             if nCycle > 0
                 rampSample = wflRamp.Sample;
                 endControlVal = rampSample(end);
@@ -2840,6 +2901,36 @@ classdef KpPredistortion < handle
             else
                 
                 controlWfl = wflRamp;
+            end
+        end
+
+        function controlWfl=getRampandModandHold(obj, chIdx, MeanDepth, RampTime, ModFrequency, ModDepth, nCycle, HoldTime, Phi)
+            %Define a function to retrieve a waveform that ramps up the
+            %lattice from 0 to MeanDepths in Er, then adds on top a
+            %modulation
+
+          if nargin<9
+              Phi=0;
+          end
+
+
+            if nCycle > 0
+                % wflMod = obj.predictSineMod(chIdx,V0,f,alpha,beta,nCycle,1,false);
+                    wflMod = obj.predictSineMod(chIdx,MeanDepth,ModFrequency,ModDepth,nCycle,1,0,Phi);
+            end
+            wflRamp = obj.predictTanhRamp(chIdx,0, MeanDepth, 1, 0, RampTime);%(chIdx,0, MeanDepth,RampTime);
+            wflHold = obj.predictTanhRamp(chIdx, MeanDepth, MeanDepth, 1, 0, HoldTime);
+            if nCycle > 0
+                rampSample = wflRamp.Sample;
+                endControlVal = rampSample(end);
+                tTriansient = obj.IgnoredTime * 2;
+                nS = tTriansient * obj.SamplingRateAwg;
+                sIdx = 1:nS;
+                wfMod = wflMod.WaveformOrigin{1};
+                controlWfl = WaveformList("c",waveformOrigin={wflRamp.WaveformOrigin{1},wfMod, wflHold.WaveformOrigin{1}},samplingRate = obj.SamplingRateAwg);
+            else
+                
+                controlWfl = WaveformList("c",waveformOrigin={wflRamp.WaveformOrigin{1}, wflHold.WaveformOrigin{1}},samplingRate = obj.SamplingRateAwg);
             end
         end
         
