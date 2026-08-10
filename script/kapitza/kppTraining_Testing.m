@@ -27,9 +27,12 @@ kpp.IsUseGenDatabase = 0; %Actually don't thinnk this does anything
 %%
 
 
-
+t0 = datetime('now');
 kpp.TrainTanhRamp(0, 70, 10e-3);
+kpp.TrainModWaveform(70,2.4e6, 40);
+t1 = datetime('now');
 
+disp(t1-t0);
 %%
 % kpp.TrainModWaveform(10, 300e3, 0.5);
 % kpp.TrainModWaveform(90, 300e3, 40); 

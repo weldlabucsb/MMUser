@@ -448,7 +448,7 @@ classdef KpPredistortion < handle
                                 xlabel('Iteration'); ylabel('Normalized RMS Error');
                                 grid on;
 
-                                drawnow;
+                                drawnow limitrate;
 
                                 %% Check if this channel is converged
                                 if errorHistory{chIdx}(kk) < eth0
@@ -637,7 +637,7 @@ classdef KpPredistortion < handle
                                 xlabel('Iteration'); ylabel('Normalized RMS Error');
                                 grid on;
 
-                                drawnow;
+                                drawnow limitrate;
 
                                 %% Check if this channel is converged
                                 if errorHistory{chIdx}(kk) < eth0
@@ -773,7 +773,7 @@ classdef KpPredistortion < handle
                                 xlabel('Iteration'); ylabel('Normalized RMS Error');
                                 grid on;
 
-                                drawnow;
+                                drawnow limitrate;
 
 
                             end
@@ -1121,13 +1121,13 @@ classdef KpPredistortion < handle
                         plot(t.',s.',fd.FitPlotData(:,1),fd.FitPlotData(:,2));
                         xlim([t(1),t(1)+10e-6])
                         title("Sine Fit, KP" + chIdx)
-                        drawnow
+                        drawnow limitrate
 
                         figure(3482+chIdx)
                         plot(1:numel(scopeMl),scopeMl,1:numel(targetMl),targetMl)
                         title("KP" + chIdx )
                         legend("Measured","Target")
-                        drawnow
+                        drawnow limitrate
                     end
                     V0Measured(ff,aa) = (abs(V(1) - V(2)) - V0)/V0;
                     phaseDiffMeasured(ff,aa) = (abs(diff(phase)) - pi)/pi;
@@ -1858,8 +1858,19 @@ classdef KpPredistortion < handle
                 pause(0.1)
                 obj.MainAwg.upload
             end
+            v=obj.Scope.VisaObj;
+            status = "";
+            while ~contains(status, "Ready")
+                status = writeread(v, 'TRIG:STAT?'); % Siglent command for State?
+            end %Checks that scope is ready
+            v=obj.Scope.VisaObj;
+            status = "";
+            while ~contains(status, "1")
+                status = writeread(v, '*OPC?'); % Siglent command for State?
+            end %Checks that keysight is ready
+
             obj.PulseAwg.trigger
-            pause(waitTime)
+            % pause(waitTime)
             obj.Scope.read
         end
 
@@ -2185,7 +2196,7 @@ classdef KpPredistortion < handle
                 eb(chIdx).LineStyle = '-';
             end
             box on
-            drawnow
+            drawnow limitrate
         end
 
         function plotLaserPower(obj)
@@ -2199,7 +2210,7 @@ classdef KpPredistortion < handle
             render
             l.LineStyle = '-';
             box on
-            drawnow
+            drawnow limitrate
         end
 
         function setScopeSine(obj)
@@ -2409,7 +2420,7 @@ classdef KpPredistortion < handle
             end
 
             disp('ILC: gathering control voltage data for KP Ramp...')
-            tic;
+            % tic;
             obj.IsTraining = true; %Allows for switching of some hardware parameters for specificness to training.
             laserPower = obj.measureLaserPower;
             %% Set parameters and scope settings
@@ -2534,7 +2545,7 @@ classdef KpPredistortion < handle
                     xlabel('Iteration'); ylabel('Normalized RMS Error');
                     grid on;
 
-                    drawnow;
+                    drawnow limitrate;
 
                     %% Check if this channel is converged
                     if errorHistory{chIdx}(kk) < eth0
@@ -2706,7 +2717,7 @@ classdef KpPredistortion < handle
                                 xlabel('Iteration'); ylabel('Normalized RMS Error');
                                 grid on;
 
-                                drawnow;
+                                drawnow limitrate;
 
                                 %% Check if this channel is converged
                                 if errorHistory{chIdx}(kk) < eth0
