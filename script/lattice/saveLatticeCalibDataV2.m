@@ -26,8 +26,8 @@ KP2Pd2Keysight = slmengine(KP2Pd,V, 'plot', 'on', 'increasing', 'on');
 
 
 %% Depth to Pd
-trialNumberKP1Kd = 10253;
-trialNumberKP2Kd = 10254;
+trialNumberKP1Kd = 10318;
+trialNumberKP2Kd = 10319;
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k = becExp.KapitzaDirac.DepthOverAmplitude;
@@ -45,11 +45,11 @@ KP2Pd2Depth = @(v) (v - off) * k; %new function to handle am spec calcs etc.
 addpath('B:\_Li\Machine Code\LatticeCode\');
 
 % =========== User Settings ============
-trialNumberKP1Am = 10257;
-trialNumberKP2Am = 10259; 
+trialNumberKP1Am = 10351;
+trialNumberKP2Am = 10350; 
 
-amSpecFreqKP1 = 940;    %kHz 
-amSpecFreqKP2 = 973;      %kHz
+amSpecFreqKP1 = 930;    %kHz 
+amSpecFreqKP2 = 980;      %kHz
 
 
 % --- KP1 Processing ---
@@ -60,7 +60,7 @@ kdScopeDepthKP1 = KP1Pd2Depth(amMeanVKp1);
 %amMeanVKp1 = mean(s1.Sample(1, 1:fix(end/5)));
 %kdScopeDepthKP1 = KP1Pd2Depth(amMeanVKp1);
 
-minDepth1 = becExp1.HardwareData.hw_KP1RampDepthSpec(1) - 50;
+minDepth1 = becExp1.HardwareData.hw_KP1RampDepthSpec(1) - 30;
 maxDepth1 = becExp1.HardwareData.hw_KP1RampDepthSpec(1) + 50;
 errorFunction1 = @(depth) findTransitionFrequency_V2(depth, 1, 3, 0) - amSpecFreqKP1; 
 amSpecDepthKP1 = fzero(errorFunction1, [minDepth1, maxDepth1]);
@@ -71,7 +71,7 @@ fprintf('Averaged %d valid traces.\n', validCount1);
 fprintf('Closest match for f=%.0f kHz is %.4f Er\n', amSpecFreqKP1, amSpecDepthKP1);
 fprintf('Mean voltage of %.4fV gives %.4f Er using KD.\n', ...
     amMeanVKp1, kdScopeDepthKP1);
-fprintf('Resulting correction factor for KP1 = %.6f\n\n', amKdFactorKP1);
+fprintf('Resulting correction factor for KP1 = %.6f\n\n', 1/amKdFactorKP1);
 
 fprintf('-------- Loading KP2... --------\n');
 
@@ -93,12 +93,12 @@ fprintf('Averaged %d valid traces.\n', validCount2);
 fprintf('Closest match for f=%.0f kHz is %.4f Er\n', amSpecFreqKP2, amSpecDepthKP2);
 fprintf('Mean voltage of %.4fV gives %.4f Er using KD. \n', ...
     amMeanVKp2, kdScopeDepthKP2);
-fprintf('Resulting correction factor for KP2 = %.6f\n',amKdFactorKP2);
+fprintf('Resulting correction factor for KP2 = %.6f\n',1/amKdFactorKP2);
 fprintf('---------- Complete. ----------\n');
 	
 %% Save
-%save("C:\Users\WOODHOUSE\Documents\MMUser\script\lattice\LatticeCalib.mat",...
- % "KP1Pd2Keysight","KP2Pd2Keysight","KP1Depth2Pd","KP2Depth2Pd")
+save("C:\Users\WOODHOUSE\Documents\MMUser\script\lattice\LatticeCalib.mat",...
+ "KP1Pd2Keysight","KP2Pd2Keysight","KP1Depth2Pd","KP2Depth2Pd")
 	
 %% --- Helper Function --- (new version, takes the avg of traces as long as not mistriggered)
 function [avgMeanVoltage, validCount] = getAverageValidScopeVoltage(becExp, sName, Ch)

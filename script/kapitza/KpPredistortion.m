@@ -1397,7 +1397,8 @@ classdef KpPredistortion < handle
 
         function [controlWfl,targetWfl,isExact] = predictKpMod(obj,chIdx,V0,f,alpha,beta,nCycle,laserPower,isDc,phi)
             % Predict control waveform from KP parameters
-            [~,isExact] = obj.findKpModData(chIdx,V0,f,alpha,beta);
+            % [~,isExact] = obj.findKpModData(chIdx,V0,f,alpha,beta);
+            isExact=false;
             sr = obj.SamplingRateAwg;
             duration = 1/f * nCycle;
             targetWfl = obj.getKpModTarget(chIdx,V0,f,alpha,beta,nCycle);
@@ -1859,18 +1860,42 @@ classdef KpPredistortion < handle
                 obj.MainAwg.upload
             end
             v=obj.Scope.VisaObj;
+            flush(v, "input");
+            writeread(v, '*OPC?');
             status = "";
             while ~contains(status, "Ready")
                 status = writeread(v, 'TRIG:STAT?'); % Siglent command for State?
             end %Checks that scope is ready
-            v=obj.Scope.VisaObj;
-            status = "";
+            % v=obj.Scope.VisaObj;
+            % status = "";
+            % while ~contains(status, "1")
+            %     status = writeread(v, '*OPC?'); % Siglent command for State?
+            % end %Checks that keysight is ready
+
+            obj.PulseAwg.trigger
+            pause(waitTime)
+            state=false;
+            trigcount=0;
+            % pulsecount=0;
+            % while ~state
+            %     state=obj.Scope.isScopeTriggered();
+            %     trigcount=trigcount+1;
+            %     if trigcount>20
+            %         obj.PulseAwg.trigger;
+            %             disp('failed once');
+            %         pulsecount=pulsecount+1;
+            %         trigcount=trigcount+1;
+            %     end
+            %     if pulsecount>2
+            %         disp('Trig failed')
+            %         state=true;
+            %     end
+            % 
+            % 
+            % end
             while ~contains(status, "1")
                 status = writeread(v, '*OPC?'); % Siglent command for State?
             end %Checks that keysight is ready
-
-            obj.PulseAwg.trigger
-            % pause(waitTime)
             obj.Scope.read
         end
 
