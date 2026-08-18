@@ -45,11 +45,11 @@ KP2Pd2Depth = @(v) (v - off) * k; %new function to handle am spec calcs etc.
 addpath('B:\_Li\Machine Code\LatticeCode\');
 
 % =========== User Settings ============
-trialNumberKP1Am = 10351;
-trialNumberKP2Am = 10350; 
+trialNumberKP1Am = 10361;
+trialNumberKP2Am = 10363; 
 
-amSpecFreqKP1 = 930;    %kHz 
-amSpecFreqKP2 = 980;      %kHz
+amSpecFreqKP1 = 934;    %kHz 
+amSpecFreqKP2 = 1021;      %kHz
 
 
 % --- KP1 Processing ---

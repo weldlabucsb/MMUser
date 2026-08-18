@@ -95,7 +95,7 @@ classdef KpPredistortion < handle
             obj.Scope.Duration = 10^round(log10(obj.ChirpDuration));
             obj.Scope.IsEnabled = [true,true,false,false];
             obj.Scope.TriggerSource = "External";
-            obj.Scope.TriggerLevel = 0.3;
+            obj.Scope.TriggerLevel = 1;
             obj.Scope.VerticalRange = [2.5,5,1.5,2];
             obj.Scope.VerticalOffset= [-1.24,-2.4,-0.75 + .02,0];
             obj.Scope.NSample = 10^round(log10(obj.ChirpDuration)) * obj.SamplingRateScope;
@@ -448,7 +448,7 @@ classdef KpPredistortion < handle
                                 xlabel('Iteration'); ylabel('Normalized RMS Error');
                                 grid on;
 
-                                drawnow limitrate;
+                                drawnow ;
 
                                 %% Check if this channel is converged
                                 if errorHistory{chIdx}(kk) < eth0
@@ -637,7 +637,7 @@ classdef KpPredistortion < handle
                                 xlabel('Iteration'); ylabel('Normalized RMS Error');
                                 grid on;
 
-                                drawnow limitrate;
+                                drawnow ;
 
                                 %% Check if this channel is converged
                                 if errorHistory{chIdx}(kk) < eth0
@@ -773,7 +773,7 @@ classdef KpPredistortion < handle
                                 xlabel('Iteration'); ylabel('Normalized RMS Error');
                                 grid on;
 
-                                drawnow limitrate;
+                                drawnow ;
 
 
                             end
@@ -1121,13 +1121,13 @@ classdef KpPredistortion < handle
                         plot(t.',s.',fd.FitPlotData(:,1),fd.FitPlotData(:,2));
                         xlim([t(1),t(1)+10e-6])
                         title("Sine Fit, KP" + chIdx)
-                        drawnow limitrate
+                        drawnow 
 
                         figure(3482+chIdx)
                         plot(1:numel(scopeMl),scopeMl,1:numel(targetMl),targetMl)
                         title("KP" + chIdx )
                         legend("Measured","Target")
-                        drawnow limitrate
+                        drawnow 
                     end
                     V0Measured(ff,aa) = (abs(V(1) - V(2)) - V0)/V0;
                     phaseDiffMeasured(ff,aa) = (abs(diff(phase)) - pi)/pi;
@@ -1853,49 +1853,52 @@ classdef KpPredistortion < handle
             if nargin == 2
                 waitTime = 0.3;
             end
+            % v=obj.Scope.VisaObj;
+            %  flush(v, "input");
+            % writeread(v, '*OPC?');
+            %Forcefully set trigger mode to single
+            % writeline(v, sprisntf("TRIG:MODE SING"));
             obj.MainAwg.WaveformList = wfl;
             obj.MainAwg.set
             if obj.IsUsingSpectrum
                 pause(0.1)
                 obj.MainAwg.upload
             end
-            v=obj.Scope.VisaObj;
-            flush(v, "input");
-            writeread(v, '*OPC?');
-            status = "";
-            while ~contains(status, "Ready")
-                status = writeread(v, 'TRIG:STAT?'); % Siglent command for State?
-            end %Checks that scope is ready
+            
+           
+            % status = "";
+            % while ~contains(status, "Ready")
+            %     status = writeread(v, 'TRIG:STAT?'); % Siglent command for State?
+            %     writeread(v, '*OPC?');
+            % end %Checks that scope is ready
             % v=obj.Scope.VisaObj;
             % status = "";
             % while ~contains(status, "1")
             %     status = writeread(v, '*OPC?'); % Siglent command for State?
             % end %Checks that keysight is ready
 
-            obj.PulseAwg.trigger
+            obj.PulseAwg.trigger;  
+            % v2=obj.PulseAwg.VisaDevice;
+            % writeline(v2, '*WAI');
+            % writeread(v2, '*OPC?');
             pause(waitTime)
-            state=false;
-            trigcount=0;
+            % state=false;
+            % trigcount=0;
             % pulsecount=0;
             % while ~state
-            %     state=obj.Scope.isScopeTriggered();
-            %     trigcount=trigcount+1;
-            %     if trigcount>20
-            %         obj.PulseAwg.trigger;
-            %             disp('failed once');
-            %         pulsecount=pulsecount+1;
-            %         trigcount=trigcount+1;
-            %     end
-            %     if pulsecount>2
-            %         disp('Trig failed')
-            %         state=true;
-            %     end
-            % 
+            %     [state, status]=obj.Scope.isScopeTriggered();
+            %     writeread(v, '*OPC?');
+            %     disp(status)
             % 
             % end
-            while ~contains(status, "1")
-                status = writeread(v, '*OPC?'); % Siglent command for State?
-            end %Checks that keysight is ready
+            % [~,state]=obj.Scope.isScopeTriggered();
+            % disp(state);
+            % while ~contains(status, "1")
+            %     status = writeread(v, '*OPC?'); % Siglent command for State?
+            % end %Checks that keysight is ready
+            % v2=obj.PulseAwg.VisaDevice;
+            % disp(writeread(v, 'TRIG2:COUNt?')
+            
             obj.Scope.read
         end
 
@@ -2221,7 +2224,7 @@ classdef KpPredistortion < handle
                 eb(chIdx).LineStyle = '-';
             end
             box on
-            drawnow limitrate
+            drawnow 
         end
 
         function plotLaserPower(obj)
@@ -2235,7 +2238,7 @@ classdef KpPredistortion < handle
             render
             l.LineStyle = '-';
             box on
-            drawnow limitrate
+            drawnow 
         end
 
         function setScopeSine(obj)
@@ -2570,7 +2573,7 @@ classdef KpPredistortion < handle
                     xlabel('Iteration'); ylabel('Normalized RMS Error');
                     grid on;
 
-                    drawnow limitrate;
+                    drawnow ;
 
                     %% Check if this channel is converged
                     if errorHistory{chIdx}(kk) < eth0
@@ -2742,7 +2745,7 @@ classdef KpPredistortion < handle
                                 xlabel('Iteration'); ylabel('Normalized RMS Error');
                                 grid on;
 
-                                drawnow limitrate;
+                                drawnow ;
 
                                 %% Check if this channel is converged
                                 if errorHistory{chIdx}(kk) < eth0

@@ -4,7 +4,7 @@ kpp = loadVar(dataPath,"kpp");
 % kpp.UpdateKpRampDataset; % (NEW) Used to modify kprampdataset parameters
 % to match new ramp settings. Only run once when trying to adjust it.
 
-% kpp.ClearKpDataset; %Run if suspecting that incorrect waveforms are being
+kpp.ClearKpDataset; %Run if suspecting that incorrect waveforms are being
 % %retrieved. Should Use IsGuessUsingOldData=false
 kpp.RampTime = 10e-3;
 kpp.IsInverted = true;
@@ -16,7 +16,7 @@ pause(0.5);
 kpp.DelayTimeEstimated = [2.8,2.9]*1e-6;
 kpp.measureDelay
 kpp.IsUseCorrection=1;
-kpp.CorrFactor = [0.972927 , 0.999537];
+kpp.CorrFactor = [0.913087 , 0.928749];
 kpp.IsUseGenDatabase=0;
 kpp.AlphaMaximum=60; % this corresponds to the hw_alpha variable, which is beta dependent. 
 
@@ -35,7 +35,7 @@ kpp.IsOverride = false;
 V0 = 10;
 kpp.InitialDepth = 20;
 kpp.RampTime=10e-3;
-% kpp.getKpRampData(V0);
+kpp.getKpRampData(V0);
 kpp.getKpModData(V0);
 
 %% Train Ramp for Bandmapping
