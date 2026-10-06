@@ -4,39 +4,99 @@ kpp = loadVar(dataPath,"kpp");
 % kpp.UpdateKpRampDataset; % (NEW) Used to modify kprampdataset parameters
 % to match new ramp settings. Only run once when trying to adjust it.
 
-kpp.ClearKpDataset; %Run if suspecting that incorrect waveforms are being
+% kpp.ClearKpDataset; %Run if suspecting that incorrect waveforms are being
 % %retrieved. Should Use IsGuessUsingOldData=false
 kpp.RampTime = 10e-3;
-kpp.IsInverted = true;
-kpp.IsGuessUsingOldData = false; %somewhat out of date, code now determines if old data available
+kpp.IsInverted = false;
+kpp.IsGuessUsingOldData = true; %somewhat out of date, code now determines if old data available
 kpp.setHardware
 kpp.setHardware
-kpp.InitialDepth = 20;
+kpp.InitialDepth = 10;
 pause(0.5);
 kpp.DelayTimeEstimated = [2.8,2.9]*1e-6;
 kpp.measureDelay
+
 kpp.IsUseCorrection=1;
-kpp.CorrFactor = [0.913087 , 0.928749];
+kpp.CorrFactor = [0.941958, 0.919452];
+
 kpp.IsUseGenDatabase=0;
-kpp.AlphaMaximum=60; % this corresponds to the hw_alpha variable, which is beta dependent. 
+kpp.AlphaMaximum=100; % this corresponds to the hw_alpha variable, which is beta dependent. 
 
 
-kpp.IsOverride=false;  % 1= using alpha & freq override list   0 = using phase diagram params
+kpp.IsOverride= true;  % 1= using alpha & freq override list   0 = using phase diagram params
 
-%% various overrides
-kpp.AlphaListOverride=linspace(4, 30, 25);
-% kpp.FrequencyListOverride=[100e3, 2.4e6, 10];
-kpp.FrequencyListOverride=[2.4e6, 1.2e6];
-% kpp.FrequencyListOverride=linspace(100e3, 2.4e6, 10); %usual fmod list
-
-%% Standard KPPhaseDiagram
-
-kpp.IsOverride = false;
-V0 = 10;
-kpp.InitialDepth = 20;
-kpp.RampTime=10e-3;
+% various overrides
+V0=10;
+%kpp.AlphaListOverride=30;
+% kpp.FrequencyListOverride=[16e3, 480e3, 10];
+kpp.FrequencyListOverride=linspace(16e3, 480e3, 10);
+%kpp.FrequencyListOverride=1.6e6; %usual fmod list
+kpp.AlphaListOverride=linspace(0.5, 8, 10); %pts for fine alpha scan
+% kpp.AlphaListOverride=60;
+%kpp.FrequencyListOverride=1.1e6;
 kpp.getKpRampData(V0);
+kpp.IsGuessUsingOldData = false;
 kpp.getKpModData(V0);
+
+%% timemod scans
+% kpp.IsOverride=true;
+% kpp.IsInverted=true;
+% V0 = 10;
+% kpp.InitialDepth = 20;
+% kpp.RampTime=10e-3;
+% kpp.AlphaListOverride = [60, 48.4444444444444, 8, 60];
+% kpp.FrequencyListOverride=[355555.555555556, 1377777.77777778, 2400000, 2400000];
+% kpp.getKpRampData(V0);
+% kpp.getKpModData(V0);
+% 
+% kpp.IsInverted=false;
+% kpp.getKpRampData(V0);
+% kpp.getKpModData(V0);
+
+%% testing Vi dependence 
+% 
+% Ramp data for various lattice depths
+% for Vi = 6:3:30
+%     kpp.RampTime = 10e-3;
+%     kpp.IsOverride=true;
+%     kpp.IsInverted=true;
+%     V0 = 10;
+%     kpp.AlphaListOverride = [48.4444444444444];
+%     kpp.FrequencyListOverride=[1377777.77777778];
+% 
+%     kpp.InitialDepth = Vi;
+%     kpp.getKpRampData(V0);
+%     kpp.getKpModData(V0);
+% end
+% %reset for later
+% kpp.InitialDepth = 20;
+% kpp.IsOverride=false;
+
+% % Standard KPPhaseDiagram
+% 
+% kpp.IsOverride = true;
+% V0 = 10;
+% kpp.InitialDepth = 20;
+% kpp.RampTime=10e-3;
+% kpp.getKpRampData(V0);
+% kpp.getKpModData(V0);
+
+% % Training for Constant Alpha/Omega Scan
+
+% kpp.IsOverride = true;
+% V0=10;
+% kpp.InitialDepth = 20;
+% kpp.RampTime=10e-3;
+% AlphaSet=linspace(8, 60, 100);
+% AlphaSet=AlphaSet(end-3:end);
+% FreqSet=AlphaSet*2.147e6/60; %Keeps Frequency Proportional,  60*beta->30  2.4MHz-> 15  alpha/omega =2
+% 
+% for ii=1:length(AlphaSet)
+% kpp.AlphaListOverride=AlphaSet(ii);
+% kpp.FrequencyListOverride=FreqSet(ii);
+% kpp.getKpRampData(V0);
+% kpp.getKpModData(V0);
+% end
 
 %% Train Ramp for Bandmapping
 

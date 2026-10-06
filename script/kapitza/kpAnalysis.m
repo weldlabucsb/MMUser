@@ -2,7 +2,7 @@ close all
 %% Load Trial and get parameters
 % trialNumber = [8945,8946,8948];
 % trialNumber = [9108,9109,9110]; % Inverted
-trialNumber = 10385; 
+trialNumber = 10399; 
 refTrialNumber = 10367;
 %trialNumber = [9117]; % Non-inverted
 % trialNumber=9108
@@ -76,6 +76,7 @@ metric = cell(1,nTrial);
 for ii = 1:nTrial
     becExp = loadBecExp(trialNumber(ii));
     isInverted = becExp.HardwareData.hw_KPIsInverted;
+    % isInverted = true;
     load(fullfile(becExp.DataAnalysisPath,"AdData.mat"));
     [alpha0,f,adData] = computeAveErr2D(...
     becExp.ScannedVariableList(1,:), ...

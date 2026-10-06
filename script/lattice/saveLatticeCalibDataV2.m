@@ -26,8 +26,8 @@ KP2Pd2Keysight = slmengine(KP2Pd,V, 'plot', 'on', 'increasing', 'on');
 
 
 %% Depth to Pd
-trialNumberKP1Kd = 10318;
-trialNumberKP2Kd = 10319;
+trialNumberKP1Kd = 10879;
+trialNumberKP2Kd = 10880;
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k = becExp.KapitzaDirac.DepthOverAmplitude;
@@ -45,11 +45,11 @@ KP2Pd2Depth = @(v) (v - off) * k; %new function to handle am spec calcs etc.
 addpath('B:\_Li\Machine Code\LatticeCode\');
 
 % =========== User Settings ============
-trialNumberKP1Am = 10361;
-trialNumberKP2Am = 10363; 
+trialNumberKP1Am = 10931;
+trialNumberKP2Am = 10933; 
 
-amSpecFreqKP1 = 934;    %kHz 
-amSpecFreqKP2 = 1021;      %kHz
+amSpecFreqKP1 = 969.5;    %kHz 
+amSpecFreqKP2 = 1029.5;      %kHz
 
 
 % --- KP1 Processing ---
@@ -64,14 +64,14 @@ minDepth1 = becExp1.HardwareData.hw_KP1RampDepthSpec(1) - 30;
 maxDepth1 = becExp1.HardwareData.hw_KP1RampDepthSpec(1) + 50;
 errorFunction1 = @(depth) findTransitionFrequency_V2(depth, 1, 3, 0) - amSpecFreqKP1; 
 amSpecDepthKP1 = fzero(errorFunction1, [minDepth1, maxDepth1]);
-amKdFactorKP1 = amSpecDepthKP1 / kdScopeDepthKP1 ;
+amKdFactorKP1 = kdScopeDepthKP1 / amSpecDepthKP1 ;
 
 fprintf('-------- KP1 Results --------\n');
 fprintf('Averaged %d valid traces.\n', validCount1);
 fprintf('Closest match for f=%.0f kHz is %.4f Er\n', amSpecFreqKP1, amSpecDepthKP1);
 fprintf('Mean voltage of %.4fV gives %.4f Er using KD.\n', ...
     amMeanVKp1, kdScopeDepthKP1);
-fprintf('Resulting correction factor for KP1 = %.6f\n\n', 1/amKdFactorKP1);
+fprintf('Resulting correction factor for KP1 = %.6f\n\n', amKdFactorKP1);
 
 fprintf('-------- Loading KP2... --------\n');
 
@@ -86,14 +86,14 @@ kdScopeDepthKP2 = KP2Pd2Depth(amMeanVKp2);
 initialDepthGuess2 = becExp2.HardwareData.hw_KP1RampDepthSpec(1); 
 errorFunction2 = @(depth) findTransitionFrequency_V2(depth, 1, 3, 0) - amSpecFreqKP2; 
 amSpecDepthKP2 = fzero(errorFunction2, initialDepthGuess2);
-amKdFactorKP2 = amSpecDepthKP2 / kdScopeDepthKP2  ;
+amKdFactorKP2 = kdScopeDepthKP2 / amSpecDepthKP2 ;
 
 fprintf('---------- KP2 Results ----------\n');
 fprintf('Averaged %d valid traces.\n', validCount2);
 fprintf('Closest match for f=%.0f kHz is %.4f Er\n', amSpecFreqKP2, amSpecDepthKP2);
 fprintf('Mean voltage of %.4fV gives %.4f Er using KD. \n', ...
     amMeanVKp2, kdScopeDepthKP2);
-fprintf('Resulting correction factor for KP2 = %.6f\n',1/amKdFactorKP2);
+fprintf('Resulting correction factor for KP2 = %.6f\n',amKdFactorKP2);
 fprintf('---------- Complete. ----------\n');
 	
 %% Save

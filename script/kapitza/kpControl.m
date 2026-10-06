@@ -7,7 +7,7 @@ arguments
     beta
     nCycle
     rampTime
-    isInverted = true
+    isInverted = false
     initialDepth = V0
     isBm = false
     bmTime double = 1e-6

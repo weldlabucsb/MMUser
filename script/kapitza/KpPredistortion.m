@@ -522,7 +522,7 @@ classdef KpPredistortion < handle
 
             %% Training parameters
             nIter0 = itercts;        % How many times to update the waveform
-            P = [0.6,0.6];
+            P = [0.6,0.6]*3;
             eth0 = obj.ErrorThreshold;
 
             %% Main loop
@@ -545,7 +545,7 @@ classdef KpPredistortion < handle
                         %     nIter = nIter0;
                         % end
                         nIter = nIter0;
-                        eth = eth0;
+                        eth = eth0
                         % lowPassFreq = 1e3;
 
                         %% Prepare target and initial control waveform guess
@@ -1173,7 +1173,7 @@ classdef KpPredistortion < handle
             % Get the target optical waveform for the given KP parameters
             calibName = "KP" + chIdx + "Depth2Pd";
             kdCalib = loadVar("LatticeCalib.mat",calibName);
-            which("LatticeCalib.mat")
+            % which("LatticeCalib.mat")
             sr = obj.SamplingRateAwg;
             duration = 1/f * nCycle;
 
@@ -2040,13 +2040,13 @@ classdef KpPredistortion < handle
         end
 
         function [controlVoltage,isExact,runIdx] = findKpModData(obj,chIdx,V0,f,alpha,beta)
-            % Find the best matched KP control waveform from the dataset,
+            % Find the best matched KP control waveform frhom the dataset,
             % then determine if this is an exact match
             A = cell2mat(obj.Dataset(chIdx).KpParameter);
             v = [V0;f;alpha;beta];
             mu = mean(A, 2);
             sig = std(A, 0, 2);
-            sig(sig==0) = mu(sig == 0);
+            sig(sig==0) = max(mu(sig == 0),1e-20);
             A_norm = (A - mu) ./ sig;
             v_norm = (v - mu) ./ sig;
             [~, runIdx] = min(vecnorm(A_norm - v_norm));
@@ -2066,7 +2066,7 @@ classdef KpPredistortion < handle
             v = [V0;f;ModDepth];
             mu = mean(A, 2);
             sig = std(A, 0, 2);
-            sig(sig==0) = mu(sig == 0);
+            sig(sig==0) = max(mu(sig == 0),1e-20);
             A_norm = (A - mu) ./ sig;
             v_norm = (v - mu) ./ sig;
             [~, runIdx] = min(vecnorm(A_norm - v_norm));
@@ -2091,7 +2091,7 @@ classdef KpPredistortion < handle
             v = [V0;alpha;beta;isInverted;targetDepth; rampTime];
             mu = mean(A, 2);
             sig = std(A, 0, 2);
-            sig(sig==0) = mu(sig == 0);
+            sig(sig==0) = max(mu(sig == 0),1e-20);
             A_norm = (A - mu) ./ sig;
             v_norm = (v - mu) ./ sig;
             [~, runIdx] = min(vecnorm(A_norm - v_norm));
@@ -2943,13 +2943,17 @@ classdef KpPredistortion < handle
             end
         end
 
-        function controlWfl=getRampandModandHold(obj, chIdx, MeanDepth, RampTime, ModFrequency, ModDepth, nCycle, HoldTime, Phi)
+        function controlWfl=getRampandModandHold(obj, chIdx, MeanDepth, RampTime, ModFrequency, ModDepth, nCycle, HoldTime, Phi, AverageHold)
             %Define a function to retrieve a waveform that ramps up the
             %lattice from 0 to MeanDepths in Er, then adds on top a
             %modulation
 
           if nargin<9
               Phi=0;
+          end
+
+          if nargin<10
+              AverageHold=1; %Logic to average the hold waveform
           end
 
 
@@ -2959,6 +2963,11 @@ classdef KpPredistortion < handle
             end
             wflRamp = obj.predictTanhRamp(chIdx,0, MeanDepth, 1, 0, RampTime);%(chIdx,0, MeanDepth,RampTime);
             wflHold = obj.predictTanhRamp(chIdx, MeanDepth, MeanDepth, 1, 0, HoldTime);
+            if AverageHold
+            wfHoldOrigin=wflHold.WaveformOrigin{1};
+            wfHoldOrigin.SampleData=ones(size(wfHoldOrigin.SampleData)).*mean(wfHoldOrigin.SampleData(5:end));
+            wflHold.WaveformOrigin{1}=wfHoldOrigin;
+            end
             if nCycle > 0
                 rampSample = wflRamp.Sample;
                 endControlVal = rampSample(end);
@@ -2973,6 +2982,51 @@ classdef KpPredistortion < handle
             end
         end
         
+        function controlWfl=getStaticInvertedLattice(obj, chIdx, nCycle)
+            %Define a function to retrieve a static waveform for inverting
+            %the lattice with a snapon. Admittedly not making it
+            %generalized to make the waveform code writing quick for a
+            %single test.
+            %Ramp up to kp1=70Er, kp2=90Er over 10ms, than hold in KP1=70,
+            %Kp2 snapping down to 60Er. 
+
+
+            ModFrequency=2.4e6;
+            ModDepth=0;
+
+            %Retrieve inverted lattice waveform, kp1=70, kp2=60
+            if chIdx==1
+                MeanDepth=70;
+            else
+                MeanDepth=60;
+            end
+
+            if nCycle > 0
+                % wflMod = obj.predictSineMod(chIdx,V0,f,alpha,beta,nCycle,1,false);
+                    wflMod = obj.predictSineMod(chIdx,MeanDepth,ModFrequency,ModDepth,nCycle,1,0,0);
+            end
+
+            %Retrieve initial lattice rampup, kp1=70, kp2=90;
+            if chIdx==1
+                MeanDepth=70;
+            else 
+                MeanDepth=90;
+            end
+            wflRamp = obj.predictTanhRamp(chIdx,0, MeanDepth, 1, 0, 10e-3);%(chIdx,0, MeanDepth,RampTime);
+            
+            if nCycle > 0
+                rampSample = wflRamp.Sample;
+                endControlVal = rampSample(end);
+                tTriansient = obj.IgnoredTime * 2;
+                nS = tTriansient * obj.SamplingRateAwg;
+                sIdx = 1:nS;
+                wfMod = wflMod.WaveformOrigin{1};
+                controlWfl = WaveformList("c",waveformOrigin={wflRamp.WaveformOrigin{1},wfMod},samplingRate = obj.SamplingRateAwg);
+            else
+                
+                controlWfl = WaveformList("c",waveformOrigin={wflRamp.WaveformOrigin{1}},samplingRate = obj.SamplingRateAwg);
+            end
+        end
     end
 end
 
