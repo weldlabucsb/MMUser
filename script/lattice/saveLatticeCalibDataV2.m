@@ -7,9 +7,9 @@
 %trialNumberPd2Keysight = 9164; % 200% moglabs mod depth, spectrum
 % trialNumberPd2Keysight = 9241; % 200% moglabs mod depth, spectrum
 % trialNumberPd2Keysight = 9625; % 200% moglabs mod depth, spectrum
-trialNumberPd2Keysight = 10168; % 200% moglabs mod depth, spectrum, taken on august 3 2026
+trialNumberPd2Keysight = 11015; % 200% moglabs mod depth, spectrum, taken on august 3 2026
 
-sName = "LatticeScope";
+sName = "LatticeScopeHD";
 becExp = loadBecExp(trialNumberPd2Keysight);
 s = loadVar(fullfile(becExp.HardwareLogPath,becExp.DataPrefix + "_" + num2str(1)) + "_" + sName + ".mat");
 rampTime = becExp.HardwareData.hw_KPRamp1Time;
@@ -18,7 +18,7 @@ nSample = s.NSample;
 idx = s.TimeList >= (scopeDuration/2) & s.TimeList <= (scopeDuration/2 + rampTime);
 % V = linspace(-1,1,numel(find(idx))); % 100% moglabs mod depth
 % V = linspace(-0.65,1,numel(find(idx))); % 150% moglabs mod depth
-V = linspace(-0.5,0.55,numel(find(idx))); % 200% moglabs mod depth
+V = linspace(-0.35,0.55,numel(find(idx))); % 200% moglabs mod depth
 KP1Pd = s.Sample(1,idx);
 KP2Pd = s.Sample(2,idx);
 KP1Pd2Keysight = slmengine(KP1Pd,V, 'plot', 'on', 'increasing', 'on');
@@ -26,8 +26,8 @@ KP2Pd2Keysight = slmengine(KP2Pd,V, 'plot', 'on', 'increasing', 'on');
 
 
 %% Depth to Pd
-trialNumberKP1Kd = 10879;
-trialNumberKP2Kd = 10880;
+trialNumberKP1Kd = 11003;
+trialNumberKP2Kd = 11008;
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k = becExp.KapitzaDirac.DepthOverAmplitude;
@@ -35,21 +35,50 @@ off = mean(becExp.KapitzaDirac.PulseOffset);
 KP1Depth2Pd = @(x) x./k + off;
 KP1Pd2Depth = @(v) (v - off) * k; %new function to handle am spec calcs etc. 
 
+%Code to compare KD pulse heights to scope calibration results.
+f=figure(20205);
+ax=axes(f);
+x=becExp.HardwareData.hw_KP1AmpV;
+y=becExp.KapitzaDirac.PulseAmplitude;
+scatter(ax, x, y);
+xalt=slmeval(y, KP1Pd2Keysight);
+hold on
+scatter(ax, xalt, y);
+xlabel('AWG Voltage')
+ylabel('Scope Voltage')
+legend('KD Measurements', 'Calibration Prediction');
+title('KP1 Calibration check')
+
 becExp = loadBecExp(trialNumberKP2Kd);
 k = becExp.KapitzaDirac.DepthOverAmplitude;
 off = mean(becExp.KapitzaDirac.PulseOffset);
 KP2Depth2Pd = @(x) x./k + off;
 KP2Pd2Depth = @(v) (v - off) * k; %new function to handle am spec calcs etc. 
 
+%Code to compare KD pulse heights to scope calibration results.
+f=figure(20206);
+ax=axes(f);
+x=becExp.HardwareData.hw_KP2AmpV;
+y=becExp.KapitzaDirac.PulseAmplitude;
+scatter(ax, x, y);
+xalt=slmeval(y, KP2Pd2Keysight);
+hold on
+scatter(ax, xalt, y);
+xlabel('AWG Voltage')
+ylabel('Scope Voltage')
+legend('KD Measurements', 'Calibration Prediction');
+title('KP2 Calibration Check')
+
 %% AM spectroscopy calculations -- added 7.15.2026 by snh
 addpath('B:\_Li\Machine Code\LatticeCode\');
 
-% =========== User Settings ============
-trialNumberKP1Am = 10931;
-trialNumberKP2Am = 10933; 
 
-amSpecFreqKP1 = 969.5;    %kHz 
-amSpecFreqKP2 = 1029.5;      %kHz
+% =========== User Settings ============
+trialNumberKP1Am = 11019;
+trialNumberKP2Am = 11021; 
+
+amSpecFreqKP1 = 796;    %kHz 
+amSpecFreqKP2 = 853.5;      %kHz
 
 
 % --- KP1 Processing ---

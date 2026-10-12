@@ -130,7 +130,7 @@ classdef KpPredistortion < handle
             obj.MainAwg.WaveformList = {wfl,wfl};
             obj.MainAwg.SamplingRate = [obj.SamplingRateAwg,obj.SamplingRateAwg];
             obj.MainAwg.TriggerSource = ["External","External"];
-            obj.MainAwg.TriggerDelay = [2.101e-7,0]; %as of july 14th 2026
+            obj.MainAwg.TriggerDelay = [1.131e-7,0]; %as of july 14th 2026 it waws 2.101e-7 (actual reading on MM was 1.051e-7) updated 10.8.2026
             obj.MainAwg.IsOutput = [true,true];
             obj.MainAwg.OutputMode = ["Normal","Normal"];
             obj.MainAwg.OutputLoad = ["Infinity","Infinity"];
