@@ -7,7 +7,8 @@
 %trialNumberPd2Keysight = 9164; % 200% moglabs mod depth, spectrum
 % trialNumberPd2Keysight = 9241; % 200% moglabs mod depth, spectrum
 % trialNumberPd2Keysight = 9625; % 200% moglabs mod depth, spectrum
-trialNumberPd2Keysight = 11015; % 200% moglabs mod depth, spectrum, taken on august 3 2026
+%trialNumberPd2Keysight = 11015; % 200% moglabs mod depth, spectrum, taken on august 3 2026
+trialNumberPd2Keysight = 11037; % 200% moglabs mod depth, spectrum, taken on oct 13 2026, new scope + diff KP2 range
 
 sName = "LatticeScopeHD";
 becExp = loadBecExp(trialNumberPd2Keysight);
@@ -19,15 +20,16 @@ idx = s.TimeList >= (scopeDuration/2) & s.TimeList <= (scopeDuration/2 + rampTim
 % V = linspace(-1,1,numel(find(idx))); % 100% moglabs mod depth
 % V = linspace(-0.65,1,numel(find(idx))); % 150% moglabs mod depth
 V = linspace(-0.35,0.55,numel(find(idx))); % 200% moglabs mod depth
+V2 = linspace(-0.41,0.55,numel(find(idx))); % 200% moglabs mod depth for KP2RampCalib waveform
 KP1Pd = s.Sample(1,idx);
 KP2Pd = s.Sample(2,idx);
 KP1Pd2Keysight = slmengine(KP1Pd,V, 'plot', 'on', 'increasing', 'on');
-KP2Pd2Keysight = slmengine(KP2Pd,V, 'plot', 'on', 'increasing', 'on');
+KP2Pd2Keysight = slmengine(KP2Pd,V2, 'plot', 'on', 'increasing', 'on');
 
 
 %% Depth to Pd
-trialNumberKP1Kd = 11003;
-trialNumberKP2Kd = 11008;
+trialNumberKP1Kd = 11034;
+trialNumberKP2Kd = 11035;
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k = becExp.KapitzaDirac.DepthOverAmplitude;
@@ -74,11 +76,11 @@ addpath('B:\_Li\Machine Code\LatticeCode\');
 
 
 % =========== User Settings ============
-trialNumberKP1Am = 11019;
-trialNumberKP2Am = 11021; 
+trialNumberKP1Am = 11088;
+trialNumberKP2Am = 11089; 
 
-amSpecFreqKP1 = 796;    %kHz 
-amSpecFreqKP2 = 853.5;      %kHz
+amSpecFreqKP1 = 799;    %kHz 
+amSpecFreqKP2 = 850.5;      %kHz
 
 
 % --- KP1 Processing ---
@@ -128,6 +130,9 @@ fprintf('---------- Complete. ----------\n');
 %% Save
 save("C:\Users\WOODHOUSE\Documents\MMUser\script\lattice\LatticeCalib.mat",...
  "KP1Pd2Keysight","KP2Pd2Keysight","KP1Depth2Pd","KP2Depth2Pd")
+datefilename=strcat("LatticeCalib_", string(datetime('now', 'Format', 'yyyy-MM-dd_HH-mm-ss')), ".mat");
+save(strcat("B:\_Li\_LithiumData\HardwareLogs\LatticeCalib\", datefilename),...
+ "KP1Pd2Keysight","KP2Pd2Keysight","KP1Depth2Pd","KP2Depth2Pd");
 	
 %% --- Helper Function --- (new version, takes the avg of traces as long as not mistriggered)
 function [avgMeanVoltage, validCount] = getAverageValidScopeVoltage(becExp, sName, Ch)

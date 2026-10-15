@@ -9,7 +9,7 @@ classdef KpPredistortion < handle
         IterationIdx = 1
         SamplingRateAwg = 20e6 % keysight sampling rate
         SamplingRateMl = 20e6 % Machine learning sampling rate
-        SamplingRateRamp = 50e6;
+        SamplingRateRamp = 100e6;
         SamplingRateRampSave = 1e6;
         NSampleScope = 1e6 % Number of samples on the scope
         SamplingRateScope = 1e9
@@ -72,7 +72,7 @@ classdef KpPredistortion < handle
         MainAwgAddress = "TCPIP0::172.16.0.3::inst0::INSTR"
         MainAwgAddress2 = "TCPIP::172.16.0.0::inst0";
         PulseAwgAddress = "TCPIP0::172.16.0.4::inst0::INSTR"
-        ScopeAddress = "TCPIP0::172.16.0.6::inst0::INSTR"
+        ScopeAddress = "TCPIP0::172.16.0.7::inst0::INSTR"
     end
 
     properties (Dependent)
@@ -91,7 +91,8 @@ classdef KpPredistortion < handle
         function setHardware(obj)
             disp("Setting hardware...")
             %% Scope
-            obj.Scope = SiglentSDS2104XPlus(obj.ScopeAddress);
+            % obj.Scope = SiglentSDS2104XPlus(obj.ScopeAddress);
+            obj.Scope = SiglentSDS2204XHD(obj.ScopeAddress); %For new scope
             obj.Scope.Duration = 10^round(log10(obj.ChirpDuration));
             obj.Scope.IsEnabled = [true,true,false,false];
             obj.Scope.TriggerSource = "External";
@@ -309,6 +310,8 @@ classdef KpPredistortion < handle
             tic;
             %% Set parameters
             obj.setScopeSine
+            pause(2);
+            obj.setScopeSine;
             nGrid = obj.NGrid;
             if obj.IsOverride
                 fList=obj.FrequencyListOverride;
@@ -507,6 +510,7 @@ classdef KpPredistortion < handle
             obj.IsTraining = true;
             %% Set parameters
             obj.setScopeRamp
+            obj.setScopeRamp
             nGrid = obj.NGrid;
             laserPower = obj.measureLaserPower;
             rampCalib = cell(1,obj.NChannel);
@@ -522,7 +526,7 @@ classdef KpPredistortion < handle
 
             %% Training parameters
             nIter0 = itercts;        % How many times to update the waveform
-            P = [0.6,0.6]*3;
+            P = [0.6,0.6];
             eth0 = obj.ErrorThreshold;
 
             %% Main loop
@@ -2266,8 +2270,9 @@ classdef KpPredistortion < handle
             else
                 obj.Scope.Duration = 20e-3;
             end
-            obj.Scope.NSample = 1e6;
+            obj.Scope.NSample = 2e6;
             obj.Scope.set
+       
             % pause(0.3)
             obj.Scope.startFromEdge
         end

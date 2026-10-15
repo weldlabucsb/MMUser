@@ -4,40 +4,52 @@ kpp = loadVar(dataPath,"kpp");
 % kpp.UpdateKpRampDataset; % (NEW) Used to modify kprampdataset parameters
 % to match new ramp settings. Only run once when trying to adjust it.
 
-kpp.ClearKpDataset; %Run if suspecting that incorrect waveforms are being
+% kpp.ClearKpDataset; %Run if suspecting that incorrect waveforms are being
 % %retrieved. Should Use IsGuessUsingOldData=false
 kpp.RampTime = 10e-3;
-kpp.IsInverted = false;
+kpp.IsInverted = true;
+kpp.InitialDepth = 12;
+V0=6;
+
 kpp.IsGuessUsingOldData = false; %somewhat out of date, code now determines if old data available
 kpp.setHardware
 kpp.setHardware
-kpp.InitialDepth = 12;
+
 pause(0.5);
 kpp.DelayTimeEstimated = [2.8,2.9]*1e-6;
 kpp.measureDelay
 
 kpp.IsUseCorrection=1;
-kpp.CorrFactor =  [0.970122, 0.906483];
+kpp.CorrFactor =  [0.962124, 0.927689];
 
 kpp.IsUseGenDatabase=0;
-kpp.AlphaMaximum=60; % this corresponds to the hw_alpha variable, which is beta dependent. 
-
+kpp.AlphaMaximum=100; % this corresponds to the hw_alpha variable, which is beta dependent. 
 
 kpp.IsOverride= true;  % 1= using alpha & freq override list   0 = using phase diagram params
 
 % various overrides
-V0=6;
+
 %kpp.AlphaListOverride=30;
 % kpp.FrequencyListOverride=[16e3, 480e3, 10];
 % kpp.FrequencyListOverride=linspace(16e3, 480e3, 10);
-kpp.FrequencyListOverride=1.6e6; %usual fmod list
+kpp.FrequencyListOverride= [2.4e6, 1.6e6, 1e6]; %usual fmod list
 % kpp.AlphaListOverride=linspace(0.5, 8, 10); %pts for fine alpha scan
-% kpp.AlphaListOverride=linspace(8, 100, 100);
-kpp.AlphaListOverride=100;
-%kpp.FrequencyListOverride=1.1e6;
+kpp.AlphaListOverride=linspace(8, 100, 100);
+% kpp.AlphaListOverride=linspace(8,60,100);
+% kpp.FrequencyListOverride=2.1e6;
+% kpp.AlphaListOverride=30;
 kpp.getKpRampData(V0);
+kpp.setHardware
+kpp.setHardware
 kpp.IsGuessUsingOldData = false;
 kpp.getKpModData(V0);
+
+% kpp.IsInverted = false;
+% kpp.getKpRampData(V0);
+% kpp.setHardware
+% kpp.setHardware
+% kpp.getKpModData(V0);
+
 
 %% timemod scans
 % kpp.IsOverride=true;
