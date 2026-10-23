@@ -28,8 +28,8 @@ KP2Pd2Keysight = slmengine(KP2Pd,V2, 'plot', 'on', 'increasing', 'on');
 
 
 %% Depth to Pd
-trialNumberKP1Kd = 11034;
-trialNumberKP2Kd = 11035;
+trialNumberKP1Kd = 11181;
+trialNumberKP2Kd = 11182;
 
 becExp = loadBecExp(trialNumberKP1Kd);
 k = becExp.KapitzaDirac.DepthOverAmplitude;
@@ -76,11 +76,11 @@ addpath('B:\_Li\Machine Code\LatticeCode\');
 
 
 % =========== User Settings ============
-trialNumberKP1Am = 11088;
-trialNumberKP2Am = 11089; 
+trialNumberKP1Am = 11184;
+trialNumberKP2Am = 11186; 
 
-amSpecFreqKP1 = 799;    %kHz 
-amSpecFreqKP2 = 850.5;      %kHz
+amSpecFreqKP1 = 795;    %kHz 
+amSpecFreqKP2 = 824;      %kHz
 
 
 % --- KP1 Processing ---
