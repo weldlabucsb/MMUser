@@ -129,7 +129,7 @@ fprintf('---------- Complete. ----------\n');
 	
 %% Save
 save("C:\Users\WOODHOUSE\Documents\MMUser\script\lattice\LatticeCalib.mat",...
- "KP1Pd2Keysight","KP2Pd2Keysight","KP1Depth2Pd","KP2Depth2Pd")
+ "KP1Pd2Keysight","KP2Pd2Keysight","KP1Depth2Pd","KP2Depth2Pd", "KP1Pd2Depth", "KP2Pd2Depth")
 datefilename=strcat("LatticeCalib_", string(datetime('now', 'Format', 'yyyy-MM-dd_HH-mm-ss')), ".mat");
 save(strcat("B:\_Li\_LithiumData\HardwareLogs\LatticeCalib\", datefilename),...
  "KP1Pd2Keysight","KP2Pd2Keysight","KP1Depth2Pd","KP2Depth2Pd");

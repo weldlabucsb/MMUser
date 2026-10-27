@@ -401,6 +401,7 @@ classdef KpPredistortion < handle
                         %% Perform training
                         errorHistory = cell(1,obj.NChannel);
                         isConverged = zeros(1,obj.NChannel);
+                        
                         for kk = 1:nIter
                             if all(isConverged)
                                 break
@@ -453,6 +454,8 @@ classdef KpPredistortion < handle
 
                                 drawnow ;
 
+                                lastwaveform{chIdx}=obj.mlScope2realScope(chIdx,scopeMl,laserPower(chIdx));
+
                                 %% Check if this channel is converged
                                 if errorHistory{chIdx}(kk) < eth0
                                     isConverged(chIdx) = 1;
@@ -478,6 +481,28 @@ classdef KpPredistortion < handle
 
                             disp("KP" + chIdx + ", V0 = " + V0(vv) +" Er, f = " + fList(ff)/1e6 + " MHz, alpha = " + alphaList(aa))
                             disp("error: " + errorHistory{chIdx}(end))
+
+                            %Add saving of last known waveform for
+                            %evaluating error
+                            if isfield(obj.Dataset(chIdx), 'KpParameterResults')
+                                numelements=numel(obj.Dataset(chIdx).KpParameterResults) ;
+                            else 
+                                numelements=0;
+                            end
+
+                            runIdx2 = numelements+1;
+                            if runIdx2>1
+                                [ind, isExact2]=obj.findDatasetIndex(chIdx, 'KpParameterResults', [V0(vv);fList(ff);alphaList(aa);obj.Beta]);
+                                if isExact2
+                                    runIdx2=ind;
+                                end
+                            end
+
+                            obj.Dataset(chIdx).KpParameterResults{runIdx2}=[V0(vv);fList(ff);alphaList(aa);obj.Beta];
+                            obj.Dataset(chIdx).KpResults{runIdx2}=lastwaveform{chIdx}; %Saves trace of last run
+                            obj.Dataset(chIdx).KpResultsTimeList{runIdx2}=tList;
+                            
+
                         end
                         obj.RunIdx = runIdx + 1;
                     end
@@ -3031,6 +3056,42 @@ classdef KpPredistortion < handle
                 
                 controlWfl = WaveformList("c",waveformOrigin={wflRamp.WaveformOrigin{1}},samplingRate = obj.SamplingRateAwg);
             end
+        end
+
+
+        function [ind, isExact]=findDatasetIndex(obj, chIdx, datasetname, params)
+            fieldnamestrings=fieldnames(obj.Dataset);
+            if ~any(matches(fieldnamestrings, datasetname))
+
+                error("Inputted Dataset name does not exist in Dataset");
+            end
+
+            A = cell2mat(obj.Dataset(chIdx).(datasetname));
+            if isempty(A)
+                isExact=0;
+                ind=0;
+                warning("Dataset was empty");
+                return
+
+            end
+            Aexamp = obj.Dataset(chIdx).(datasetname){1};
+            v = params;
+            if ~isequal(size(Aexamp), size(v))
+                error("Inputted params dimensions do not match that of dataset dimensions")
+            end
+            mu = mean(A, 2);
+            sig = std(A, 0, 2);
+            sig(sig==0) = max(mu(sig == 0),1e-20);
+            A_norm = (A - mu) ./ sig;
+            v_norm = (v - mu) ./ sig;
+            [~, runIdx] = min(vecnorm(A_norm - v_norm));
+            if isempty(runIdx)
+                error("can not find matching KP record")
+            end
+                
+            ind=runIdx;
+
+            isExact = all(v == A(:,runIdx));
         end
     end
 end

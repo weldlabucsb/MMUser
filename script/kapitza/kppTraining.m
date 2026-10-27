@@ -9,7 +9,7 @@ kpp = loadVar(dataPath,"kpp");
 kpp.RampTime = 10e-3;
 kpp.IsInverted = true;
 kpp.InitialDepth = 20;
-V0=30;
+V0=10;
 
 kpp.IsGuessUsingOldData = false; %somewhat out of date, code now determines if old data available
 kpp.setHardware
@@ -32,13 +32,13 @@ kpp.IsOverride= true;  % 1= using alpha & freq override list   0 = using phase d
 %kpp.AlphaListOverride=30;
 % kpp.FrequencyListOverride=[16e3, 480e3, 10];
 % kpp.FrequencyListOverride=linspace(16e3, 480e3, 10);
-kpp.FrequencyListOverride= [550e3, 1.4e6, 2.4e6]; %usual fmod list
+% kpp.FrequencyListOverride= [550e3, 1.4e6, 2.4e6]; %usual fmod list
 % kpp.AlphaListOverride=linspace(0.5, 8, 10); %pts for fine alpha scan
-kpp.AlphaListOverride=10;
-% kpp.AlphaListOverride=linspace(8,60,100);
-% kpp.FrequencyListOverride=2.1e6;
-% kpp.AlphaListOverride=30;
-kpp.getKpRampData(V0);
+% kpp.AlphaListOverride=10;
+% kpp.AlphaListOverride=linspace(8,100,100);
+kpp.FrequencyListOverride=2.4e6;
+kpp.AlphaListOverride=60;
+% kpp.getKpRampData(V0);
 kpp.setHardware
 kpp.setHardware
 kpp.IsGuessUsingOldData = false;
@@ -50,6 +50,29 @@ kpp.getKpModData(V0);
 % kpp.setHardware
 % kpp.getKpModData(V0);
 
+%% Training other lattice depths at the same time
+
+% kpp.InitialDepth = 16;
+% V0=8;
+% kpp.AlphaListOverride=linspace(8,75,100);
+% kpp.FrequencyListOverride=2.4e6;
+% % kpp.AlphaListOverride=30;
+% kpp.getKpRampData(V0);
+% kpp.setHardware
+% kpp.setHardware
+% kpp.IsGuessUsingOldData = false;
+% kpp.getKpModData(V0);
+% 
+% kpp.InitialDepth = 20;
+% V0=10;
+% kpp.AlphaListOverride=linspace(8,60,100);
+% kpp.FrequencyListOverride=2.4e6;
+% % kpp.AlphaListOverride=30;
+% kpp.getKpRampData(V0);
+% kpp.setHardware
+% kpp.setHardware
+% kpp.IsGuessUsingOldData = false;
+% kpp.getKpModData(V0);
 
 %% timemod scans
 % kpp.IsOverride=true;
