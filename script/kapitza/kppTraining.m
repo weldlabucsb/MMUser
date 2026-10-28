@@ -8,8 +8,8 @@ kpp = loadVar(dataPath,"kpp");
 % %retrieved. Should Use IsGuessUsingOldData=false
 kpp.RampTime = 10e-3;
 kpp.IsInverted = true;
-kpp.InitialDepth = 20;
-V0=10;
+kpp.InitialDepth = 16;
+V0=8;
 
 
 kpp.IsGuessUsingOldData = false; %somewhat out of date, code now determines if old data available
@@ -39,7 +39,7 @@ kpp.IsOverride= true;  % 1= using alpha & freq override list   0 = using phase d
 % kpp.FrequencyListOverride= [550e3, 1.4e6, 2.4e6]; %usual fmod list
 % kpp.AlphaListOverride=linspace(0.5, 8, 10); %pts for fine alpha scan
 % kpp.AlphaListOverride=10;
-kpp.AlphaListOverride=linspace(8,60,100);
+kpp.AlphaListOverride=linspace(8,75,20);
 kpp.FrequencyListOverride=2.4e6;
 % kpp.AlphaListOverride=60;
 kpp.getKpRampData(V0);

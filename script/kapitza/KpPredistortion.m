@@ -1427,8 +1427,8 @@ classdef KpPredistortion < handle
 
         function [controlWfl,targetWfl,isExact] = predictKpMod(obj,chIdx,V0,f,alpha,beta,nCycle,laserPower,isDc,phi)
             % Predict control waveform from KP parameters
-            % [~,isExact] = obj.findKpModData(chIdx,V0,f,alpha,beta);
-            isExact=false;
+            [~,isExact] = obj.findKpModData(chIdx,V0,f,alpha,beta);
+            % isExact=false;
             sr = obj.SamplingRateAwg;
             duration = 1/f * nCycle;
             targetWfl = obj.getKpModTarget(chIdx,V0,f,alpha,beta,nCycle);
