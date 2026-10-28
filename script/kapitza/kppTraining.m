@@ -11,7 +11,11 @@ kpp.IsInverted = true;
 kpp.InitialDepth = 20;
 V0=10;
 
+
 kpp.IsGuessUsingOldData = false; %somewhat out of date, code now determines if old data available
+kpp.IsNormalizeError = true; %originally true, checking if convergence works better without normalizing error. 
+kpp.ErrorThreshold = 0.013; %initial value
+
 kpp.setHardware
 kpp.setHardware
 
@@ -20,7 +24,7 @@ kpp.DelayTimeEstimated = [2.8,2.9]*1e-6;
 kpp.measureDelay
 
 kpp.IsUseCorrection=1;
-kpp.CorrFactor =  [0.954633, 0.984628];
+kpp.CorrFactor =  [0.955876, 0.910585];
 
 kpp.IsUseGenDatabase=0;
 kpp.AlphaMaximum=60; % this corresponds to the hw_alpha variable, which is beta dependent. 
@@ -35,13 +39,15 @@ kpp.IsOverride= true;  % 1= using alpha & freq override list   0 = using phase d
 % kpp.FrequencyListOverride= [550e3, 1.4e6, 2.4e6]; %usual fmod list
 % kpp.AlphaListOverride=linspace(0.5, 8, 10); %pts for fine alpha scan
 % kpp.AlphaListOverride=10;
-% kpp.AlphaListOverride=linspace(8,100,100);
+kpp.AlphaListOverride=linspace(8,60,100);
 kpp.FrequencyListOverride=2.4e6;
-kpp.AlphaListOverride=60;
-% kpp.getKpRampData(V0);
+% kpp.AlphaListOverride=60;
+kpp.getKpRampData(V0);
 kpp.setHardware
 kpp.setHardware
 kpp.IsGuessUsingOldData = false;
+kpp.ErrorThreshold = 0.003;
+kpp.IsNormalizeError = true;
 kpp.getKpModData(V0);
 
 % kpp.IsInverted = false;

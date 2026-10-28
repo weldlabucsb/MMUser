@@ -2,7 +2,7 @@
 % Given mod params, extract waveform and extract DC Error and ModDepth
 % Error from trained dataset
 
-function [DCError, ModDepthError]=kpCheckModTrainingError(V0, f, ModDepth, beta)
+function [DCError, ModDepthError, DCError2, ModDepthError2]=kpCheckModTrainingError(V0, f, ModDepth, beta)
     
     folderPath = "B:\_Li\_LithiumData\HardwareLogs\KpPredistortionData";
     dataPath = findLatestFile(folderPath);
@@ -13,6 +13,9 @@ function [DCError, ModDepthError]=kpCheckModTrainingError(V0, f, ModDepth, beta)
 
     load("LatticeCalib.mat");
     
+    
+
+
     for ii=1:2
         ind=kpp.findDatasetIndex(ii, 'KpParameterResults', [V0; f; ModDepth; beta]);
         trainedresult=kpp.Dataset(ii).KpResults{ind};
@@ -30,8 +33,8 @@ function [DCError, ModDepthError]=kpCheckModTrainingError(V0, f, ModDepth, beta)
         MeanVoltage=a.c; %c is the offset in the fitsine model 
         ModDepthVoltage=a.a; %a is the amplitude in the fitsine model, mid to pk
 
-        MeanVoltage=MeanVoltage/kpp.CorrFactor(ii);
-        ModDepthVoltage=ModDepthVoltage/kpp.CorrFactor(ii);
+        % MeanVoltage=MeanVoltage;
+        % ModDepthVoltage=ModDepthVoltage;
     
 
         if ii==1
@@ -69,11 +72,13 @@ function [DCError, ModDepthError]=kpCheckModTrainingError(V0, f, ModDepth, beta)
             targetmeanEr=(1+ModDepth/2) * V0;
             targetmoddepthEr=(1+ModDepth/2) * V0 * (ModDepth/(2+ModDepth)) * beta;
         end
+        disp(kpp.CorrFactor(ii))
 
-        DCError(ii)=MeanEr-targetmeanEr;
+        DCError(ii)=MeanEr/kpp.CorrFactor(ii)-targetmeanEr;
 
         ModDepthEr=1/2*(transferfunc(MeanVoltage+ModDepthVoltage)-transferfunc(MeanVoltage-ModDepthVoltage));
-        ModDepthError(ii)=ModDepthEr-targetmoddepthEr;
+        ModDepthError(ii)=ModDepthEr/kpp.CorrFactor(ii)-targetmoddepthEr;
+
     end
     
     

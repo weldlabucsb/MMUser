@@ -355,11 +355,12 @@ classdef KpPredistortion < handle
                         % end
                         nIter = nIter0;
                         P = PFunc(fList(ff)) * ones(1,obj.NChannel);
-                        if fList(ff) >= 1.8e6
-                            eth = eth0 * 1.6;
-                        else
-                            eth = eth0;
-                        end
+                        % if fList(ff) >= 1.8e6
+                        %     eth = eth0 * 1.6;
+                        % else
+                        %     eth = eth0;
+                        % end
+                        eth=eth0; %Trying to comment out this dependency on frequency
 
                         %% Prepare target and initial control waveform guess
                         targetWf = cell(1,2);
@@ -2078,7 +2079,9 @@ classdef KpPredistortion < handle
             sig(sig==0) = max(mu(sig == 0),1e-20);
             A_norm = (A - mu) ./ sig;
             v_norm = (v - mu) ./ sig;
-            [~, runIdx] = min(vecnorm(A_norm - v_norm));
+            % [~, runIdx] = min(vecnorm(A_norm - v_norm));
+            d = vecnorm(A_norm-v_norm);
+            runIdx = find(d == min(d), 1, 'last');
             if isempty(runIdx)
                 error("can not find matching KP record")
             end
@@ -2123,7 +2126,9 @@ classdef KpPredistortion < handle
             sig(sig==0) = max(mu(sig == 0),1e-20);
             A_norm = (A - mu) ./ sig;
             v_norm = (v - mu) ./ sig;
-            [~, runIdx] = min(vecnorm(A_norm - v_norm));
+            % [~, runIdx] = min(vecnorm(A_norm - v_norm));
+            d = vecnorm(A_norm-v_norm);
+            runIdx = find(d == min(d), 1, 'last');
             if isempty(runIdx)
                 error("can not find matching KP record")
             end
@@ -2507,7 +2512,7 @@ classdef KpPredistortion < handle
 
             %% Training parameters
             nIter0 = itercts;        % How many times to update the waveform
-            P = [0.6,0.6];
+            P = [0.6,0.6]*2;
             eth0 = obj.ErrorThreshold;
 
             obj.setScopeRangeGen(max([InitVal,  EndVal])); %This needs to be modified, to avoid KpRampSpecificParameters
@@ -3084,7 +3089,9 @@ classdef KpPredistortion < handle
             sig(sig==0) = max(mu(sig == 0),1e-20);
             A_norm = (A - mu) ./ sig;
             v_norm = (v - mu) ./ sig;
-            [~, runIdx] = min(vecnorm(A_norm - v_norm));
+            % [~, runIdx] = min(vecnorm(A_norm - v_norm));
+            d = vecnorm(A_norm-v_norm);
+            runIdx = find(d == min(d), 1, 'last');
             if isempty(runIdx)
                 error("can not find matching KP record")
             end
